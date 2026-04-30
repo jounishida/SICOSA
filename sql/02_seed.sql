@@ -3,12 +3,27 @@ USE suporte_ocorrencias;
 -- Senha padrão para todos os usuários abaixo: Senha@123
 -- Hash SHA-256: a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd
 
-INSERT INTO users (id, full_name, email, password_hash, role, department, is_active) VALUES
-(1, 'Jonathan Ken Nishida', 'jonathan.nishida', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 'solicitante', 'Almoxarifado', 1),
-(2, 'Marcos Silva', 'marcos.silva', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 'atendente', 'Setor de Apoio', 1),
-(3, 'Jéssica Costa', 'jessica.costa', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 'atendente', 'Setor de Apoio', 1),
-(4, 'Carlos Menezes', 'carlos.menezes', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 'gestor', 'Gestão', 1),
-(5, 'Administrador do Sistema', 'admin', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 'administrador', 'TI', 1);
+INSERT INTO users (id, full_name, email, password_hash, department, is_active) VALUES
+(1, 'Jonathan Ken Nishida', 'jonathan.nishida', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 'Almoxarifado', 1),
+(2, 'Marcos Silva', 'marcos.silva', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 'Setor de Apoio', 1),
+(3, 'Jéssica Costa', 'jessica.costa', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 'Setor de Apoio', 1),
+(4, 'Carlos Menezes', 'carlos.menezes', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 'Gestão', 1),
+(5, 'Administrador do Sistema', 'admin', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 'TI', 1);
+
+
+
+INSERT INTO profiles (id, name, label) VALUES
+(1, 'solicitante', 'Solicitante'),
+(2, 'atendente', 'Atendente'),
+(3, 'gestor', 'Gestor'),
+(4, 'administrador', 'Administrador');
+
+INSERT INTO user_profiles (user_id, profile_id) VALUES
+(1, 1),
+(2, 2),
+(3, 2),
+(4, 3),
+(5, 4);
 
 INSERT INTO occurrences (
     id, protocol, requester_id, title, description, department, category,
