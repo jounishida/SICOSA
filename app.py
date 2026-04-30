@@ -6,8 +6,8 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
-from src.core.config import APP_NAME, PRIORITY_OPTIONS, ROLE_LABELS, STATUS_OPTIONS
-from src.core.security import hash_password, valid_email, valid_password_strength, validate_files
+from src.config import APP_NAME, PRIORITY_OPTIONS, ROLE_LABELS, STATUS_OPTIONS
+from src.security import hash_password, valid_email, valid_password_strength, validate_files
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
