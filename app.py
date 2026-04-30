@@ -525,6 +525,18 @@ def toggle_user_status(user_id: int, is_active: bool):
 # =========================
 # Componentes de interface
 # =========================
+
+
+def safe_dataframe(df: pd.DataFrame, **kwargs):
+    try:
+        st.dataframe(df, **kwargs)
+    except Exception as exc:
+        if "pyarrow" in str(exc).lower():
+            st.warning("Não foi possível carregar o pyarrow neste ambiente. Exibindo tabela simplificada.")
+            st.table(df)
+        else:
+            raise
+
 def render_hero(title: str, subtitle: str):
     st.markdown(
         f"""
@@ -570,7 +582,7 @@ def render_occurrences_table(df: pd.DataFrame, height: int = 350):
     display_df.columns = [
         "Protocolo", "Título", "Setor", "Prioridade", "Status", "Solicitante", "Responsável", "Criada em"
     ]
-    st.dataframe(display_df, use_container_width=True, hide_index=True, height=height)
+    safe_dataframe(display_df, use_container_width=True, hide_index=True, height=height)
 
 
 def render_login():
@@ -793,12 +805,12 @@ def render_reports(user: dict):
         departments = manager_department_summary()
         st.markdown("### Ocorrências por setor")
         if not departments.empty:
-            st.dataframe(departments.rename(columns={"department": "Setor", "quantidade": "Ocorrências"}), hide_index=True, use_container_width=True)
+            safe_dataframe(departments.rename(columns={"department": "Setor", "quantidade": "Ocorrências"}), hide_index=True, use_container_width=True)
     with c2:
         status_df = manager_status_summary()
         st.markdown("### Distribuição por status")
         if not status_df.empty:
-            st.dataframe(status_df.rename(columns={"status": "Status", "quantidade": "Ocorrências"}), hide_index=True, use_container_width=True)
+            safe_dataframe(status_df.rename(columns={"status": "Status", "quantidade": "Ocorrências"}), hide_index=True, use_container_width=True)
 
     st.markdown("### Detalhamento")
     df = get_occurrences("gestor", int(user["id"]))
@@ -822,7 +834,7 @@ def render_admin_dashboard(user: dict):
     if not users_df.empty:
         grouped = users_df.groupby("role").size().reset_index(name="quantidade")
         grouped["role"] = grouped["role"].map(ROLE_LABELS)
-        st.dataframe(grouped.rename(columns={"role": "Perfil", "quantidade": "Quantidade"}), hide_index=True, use_container_width=True)
+        safe_dataframe(grouped.rename(columns={"role": "Perfil", "quantidade": "Quantidade"}), hide_index=True, use_container_width=True)
 
 
 def render_admin_users():
@@ -868,7 +880,7 @@ def render_admin_users():
     display_df["role"] = display_df["role"].map(ROLE_LABELS)
     display_df["is_active"] = display_df["is_active"].map({1: "Ativo", 0: "Inativo"})
     display_df.columns = ["ID", "Nome", "E-mail", "Perfil", "Setor", "Status", "Criado em", "Último acesso"]
-    st.dataframe(display_df, hide_index=True, use_container_width=True, height=380)
+    safe_dataframe(display_df, hide_index=True, use_container_width=True, height=380)
 
     user_options = {f"{row['full_name']} — {ROLE_LABELS[row['role']]}": (int(row['id']), bool(row['is_active'])) for _, row in users.iterrows()}
     selected = st.selectbox("Alterar status de usuário", list(user_options.keys()))
@@ -902,7 +914,7 @@ def render_admin_logs():
         st.info("Nenhum log encontrado.")
     else:
         logs.columns = ["Data", "Protocolo", "Usuário", "Ação", "Status anterior", "Novo status", "Observação"]
-        st.dataframe(logs, hide_index=True, use_container_width=True, height=420)
+        safe_dataframe(logs, hide_index=True, use_container_width=True, height=420)
 
 
 def render_occurrence_detail(user: dict):
