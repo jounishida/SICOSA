@@ -1,4 +1,3 @@
-import hashlib
 import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
@@ -6,6 +5,9 @@ from typing import Dict, List, Optional
 import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
+
+from src.config import APP_NAME, PRIORITY_OPTIONS, ROLE_LABELS, STATUS_OPTIONS
+from src.security import hash_password, valid_email, valid_password_strength, validate_files
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -27,23 +29,13 @@ DB_URL = os.getenv(
     "DATABASE_URL",
     "mysql+pymysql://root:1234@localhost:3306/suporte_ocorrencias?charset=utf8mb4",
 )
-APP_NAME = "Sistema de Cadastro de Ocorrências do Setor de Apoio"
-STATUS_OPTIONS = ["Aberta", "Em atendimento", "Pendente", "Encerrada"]
-PRIORITY_OPTIONS = ["Baixa", "Média", "Alta", "Crítica"]
-ROLE_LABELS = {
-    "solicitante": "Solicitante",
-    "atendente": "Atendente",
-    "gestor": "Gestor",
-    "administrador": "Administrador",
-}
-
 
 st.markdown(
     """
     <style>
     .block-container {padding-top: 1.2rem; padding-bottom: 2rem;}
     .hero {
-        background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%);
+        background: linear-gradient(135deg, #0b1020 0%, #1e3a8a 55%, #06b6d4 100%);
         color: white;
         padding: 1.6rem 1.8rem;
         border-radius: 18px;
@@ -52,7 +44,7 @@ st.markdown(
     .hero h1 {margin: 0 0 .4rem 0; font-size: 2rem;}
     .hero p {margin: 0; opacity: .92;}
     .card {
-        background: #f8fafc;
+        background: #ffffff;
         border: 1px solid #e2e8f0;
         border-radius: 16px;
         padding: 1rem 1rem .8rem 1rem;
@@ -69,10 +61,6 @@ st.markdown(
 @st.cache_resource(show_spinner=False)
 def get_engine():
     return create_engine(DB_URL, pool_pre_ping=True)
-
-
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
 
 
 def show_db_error(error: Exception):
@@ -537,6 +525,18 @@ def toggle_user_status(user_id: int, is_active: bool):
 # =========================
 # Componentes de interface
 # =========================
+
+
+def safe_dataframe(df: pd.DataFrame, **kwargs):
+    try:
+        st.dataframe(df, **kwargs)
+    except Exception as exc:
+        if "pyarrow" in str(exc).lower():
+            st.warning("Não foi possível carregar o pyarrow neste ambiente. Exibindo tabela simplificada.")
+            st.table(df)
+        else:
+            raise
+
 def render_hero(title: str, subtitle: str):
     st.markdown(
         f"""
@@ -582,7 +582,7 @@ def render_occurrences_table(df: pd.DataFrame, height: int = 350):
     display_df.columns = [
         "Protocolo", "Título", "Setor", "Prioridade", "Status", "Solicitante", "Responsável", "Criada em"
     ]
-    st.dataframe(display_df, use_container_width=True, hide_index=True, height=height)
+    safe_dataframe(display_df, use_container_width=True, hide_index=True, height=height)
 
 
 def render_login():
@@ -704,6 +704,10 @@ def render_new_occurrence(user: dict):
                         "priority": priority,
                         "assigned_to": attendant_options[assigned_label],
                     }
+                    valid, msg = validate_files(uploaded_files or [])
+                    if not valid:
+                        st.error(msg)
+                        return
                     attachments = [
                         {"file_name": file.name, "mime_type": file.type, "file_data": file.getvalue()}
                         for file in (uploaded_files or [])
@@ -801,12 +805,12 @@ def render_reports(user: dict):
         departments = manager_department_summary()
         st.markdown("### Ocorrências por setor")
         if not departments.empty:
-            st.dataframe(departments.rename(columns={"department": "Setor", "quantidade": "Ocorrências"}), hide_index=True, use_container_width=True)
+            safe_dataframe(departments.rename(columns={"department": "Setor", "quantidade": "Ocorrências"}), hide_index=True, use_container_width=True)
     with c2:
         status_df = manager_status_summary()
         st.markdown("### Distribuição por status")
         if not status_df.empty:
-            st.dataframe(status_df.rename(columns={"status": "Status", "quantidade": "Ocorrências"}), hide_index=True, use_container_width=True)
+            safe_dataframe(status_df.rename(columns={"status": "Status", "quantidade": "Ocorrências"}), hide_index=True, use_container_width=True)
 
     st.markdown("### Detalhamento")
     df = get_occurrences("gestor", int(user["id"]))
@@ -830,7 +834,7 @@ def render_admin_dashboard(user: dict):
     if not users_df.empty:
         grouped = users_df.groupby("role").size().reset_index(name="quantidade")
         grouped["role"] = grouped["role"].map(ROLE_LABELS)
-        st.dataframe(grouped.rename(columns={"role": "Perfil", "quantidade": "Quantidade"}), hide_index=True, use_container_width=True)
+        safe_dataframe(grouped.rename(columns={"role": "Perfil", "quantidade": "Quantidade"}), hide_index=True, use_container_width=True)
 
 
 def render_admin_users():
@@ -849,6 +853,12 @@ def render_admin_users():
             if not full_name.strip() or not email.strip() or not password.strip():
                 st.error("Preencha nome, e-mail e senha para criar o usuário.")
             else:
+                if not valid_email(email):
+                    st.error("Informe um e-mail válido.")
+                    return
+                if not valid_password_strength(password):
+                    st.error("Senha fraca. Use ao menos 8 caracteres, 1 maiúscula e 1 número.")
+                    return
                 try:
                     create_user({
                         "full_name": full_name,
@@ -870,7 +880,7 @@ def render_admin_users():
     display_df["role"] = display_df["role"].map(ROLE_LABELS)
     display_df["is_active"] = display_df["is_active"].map({1: "Ativo", 0: "Inativo"})
     display_df.columns = ["ID", "Nome", "E-mail", "Perfil", "Setor", "Status", "Criado em", "Último acesso"]
-    st.dataframe(display_df, hide_index=True, use_container_width=True, height=380)
+    safe_dataframe(display_df, hide_index=True, use_container_width=True, height=380)
 
     user_options = {f"{row['full_name']} — {ROLE_LABELS[row['role']]}": (int(row['id']), bool(row['is_active'])) for _, row in users.iterrows()}
     selected = st.selectbox("Alterar status de usuário", list(user_options.keys()))
@@ -904,7 +914,7 @@ def render_admin_logs():
         st.info("Nenhum log encontrado.")
     else:
         logs.columns = ["Data", "Protocolo", "Usuário", "Ação", "Status anterior", "Novo status", "Observação"]
-        st.dataframe(logs, hide_index=True, use_container_width=True, height=420)
+        safe_dataframe(logs, hide_index=True, use_container_width=True, height=420)
 
 
 def render_occurrence_detail(user: dict):
@@ -1006,6 +1016,10 @@ def render_occurrence_detail(user: dict):
                         attendant_map[selected_assignee],
                     )
                     if new_files:
+                        valid, msg = validate_files(new_files)
+                        if not valid:
+                            st.error(msg)
+                            return
                         add_attachment(int(occurrence_id), new_files, int(user["id"]))
                     st.success("Atualização registrada com sucesso.")
                     st.rerun()
