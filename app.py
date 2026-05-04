@@ -569,6 +569,29 @@ def assign_user_department(user_id: int, department_id: int):
 def remove_user_department(user_id: int, department_id: int):
     run_execute("DELETE FROM user_departments WHERE user_id = :user_id AND department_id = :department_id", {"user_id": user_id, "department_id": department_id})
 
+def remove_user_department(user_id: int, department_id: int):
+    run_execute("DELETE FROM user_departments WHERE user_id = :user_id AND department_id = :department_id", {"user_id": user_id, "department_id": department_id})
+
+
+def create_department(name: str):
+    run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
+
+
+def delete_department(department_id: int):
+    linked = fetch_scalar("SELECT COUNT(*) FROM user_departments WHERE department_id = :id", {"id": department_id}) or 0
+    if int(linked) > 0:
+        raise ValueError("Não é possível excluir setor vinculado a usuários.")
+    run_execute("DELETE FROM departments WHERE id = :id", {"id": department_id})
+
+def create_department(name: str):
+    run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
+
+
+def delete_department(department_id: int):
+    linked = fetch_scalar("SELECT COUNT(*) FROM user_departments WHERE department_id = :id", {"id": department_id}) or 0
+    if int(linked) > 0:
+        raise ValueError("Não é possível excluir setor vinculado a usuários.")
+    run_execute("DELETE FROM departments WHERE id = :id", {"id": department_id})
 
 def create_department(name: str):
     run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
