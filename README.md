@@ -6,6 +6,10 @@ Projeto Streamlit com perfis de **solicitante**, **atendente**, **gestor** e **a
 
 ```text
 streamlit_ocorrencias/
+└── scr/
+    ├── config.py
+    ├── db.py
+    └── security.py
 ├── app.py
 ├── requirements.txt
 ├── .env.example
