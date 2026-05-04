@@ -569,11 +569,6 @@ def assign_user_department(user_id: int, department_id: int):
 def remove_user_department(user_id: int, department_id: int):
     run_execute("DELETE FROM user_departments WHERE user_id = :user_id AND department_id = :department_id", {"user_id": user_id, "department_id": department_id})
 
-
-def create_department(name: str):
-    run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
-
-
 def delete_department(department_id: int):
     linked = fetch_scalar("SELECT COUNT(*) FROM user_departments WHERE department_id = :id", {"id": department_id}) or 0
     if int(linked) > 0:
@@ -597,6 +592,16 @@ def assign_user_department(user_id: int, department_id: int):
 def remove_user_department(user_id: int, department_id: int):
     run_execute("DELETE FROM user_departments WHERE user_id = :user_id AND department_id = :department_id", {"user_id": user_id, "department_id": department_id})
 
+
+def create_department(name: str):
+    run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
+
+
+def delete_department(department_id: int):
+    linked = fetch_scalar("SELECT COUNT(*) FROM user_departments WHERE department_id = :id", {"id": department_id}) or 0
+    if int(linked) > 0:
+        raise ValueError("Não é possível excluir setor vinculado a usuários.")
+    run_execute("DELETE FROM departments WHERE id = :id", {"id": department_id})
 
 def create_department(name: str):
     run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
@@ -768,7 +773,6 @@ def render_new_occurrence(user: dict):
             user_depts = list_user_departments(int(user["id"]))
             dept_options = [""] + user_depts["name"].tolist()
             department = st.selectbox("Setor", dept_options, index=1 if len(dept_options) > 1 else 0)
-            category = st.text_input("Categoria", placeholder="Ex.: Infraestrutura, Materiais, Suporte")
         with col2:
             priority = st.selectbox("Prioridade", PRIORITY_OPTIONS, index=1)
             assigned_label = st.selectbox("Responsável inicial", list(attendant_options.keys()))
@@ -796,7 +800,7 @@ def render_new_occurrence(user: dict):
                         "title": title.strip(),
                         "description": description.strip(),
                         "department": department.strip(),
-                        "category": category.strip() or None,
+                        "category": None,
                         "priority": priority,
                         "assigned_to": attendant_options[assigned_label],
                     }
@@ -1071,10 +1075,24 @@ def render_admin_logs():
 
 
 def render_occurrence_detail(user: dict):
-    occurrence_id = st.session_state.get("selected_occurrence_id")
-    if not occurrence_id:
-        st.warning("Selecione uma ocorrência em uma das telas anteriores para ver o detalhe.")
+    role = user["role"]
+    scope_role = "gestor" if role == "supervisor" else role
+    visible = get_occurrences(scope_role, int(user["id"]))
+    if visible.empty:
+        st.warning("Nenhuma ocorrência disponível para este perfil.")
         return
+
+    options = {f"{row['protocol']} — {row['title']}": int(row['id']) for _, row in visible.iterrows()}
+    current_id = st.session_state.get("selected_occurrence_id")
+    labels = list(options.keys())
+    current_label = labels[0]
+    for label, oid in options.items():
+        if oid == current_id:
+            current_label = label
+            break
+    selected_label = st.selectbox("Selecionar ocorrência", labels, index=labels.index(current_label), key="detail_picker")
+    occurrence_id = options[selected_label]
+    st.session_state["selected_occurrence_id"] = occurrence_id
 
     df = get_occurrence_by_id(int(occurrence_id))
     if df.empty:
@@ -1136,7 +1154,6 @@ def render_occurrence_detail(user: dict):
             )
 
     st.markdown("### Registrar nova interação")
-    role = user["role"]
     attendants = get_active_attendants()
     attendant_map = {"Manter responsável atual": None}
     attendant_map.update({row["full_name"]: int(row["id"]) for _, row in attendants.iterrows()})
