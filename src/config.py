@@ -15,6 +15,7 @@ ROLE_LABELS = {
     "atendente": "Atendente",
     "gestor": "Gestor",
     "administrador": "Administrador",
+    "supervisor": "Supervisor",
 }
 ALLOWED_MIME_TYPES = {
     "image/png", "image/jpeg", "application/pdf", "text/plain",

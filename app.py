@@ -189,6 +189,7 @@ def create_occurrence(payload: dict, attachments: List[dict]):
                 """
             ),
             {
+                "priority": new_priority or current_row["priority"],
                 "occurrence_id": occurrence_id,
                 "user_id": payload["requester_id"],
                 "note": "Ocorrência registrada pelo solicitante.",
@@ -207,7 +208,8 @@ def create_occurrence(payload: dict, attachments: List[dict]):
                     """
                 ),
                 {
-                    "occurrence_id": occurrence_id,
+                    "priority": new_priority or current_row["priority"],
+                "occurrence_id": occurrence_id,
                     "file_name": item["file_name"],
                     "mime_type": item["mime_type"],
                     "file_data": item["file_data"],
@@ -330,7 +332,8 @@ def add_attachment(occurrence_id: int, uploaded_files: List, user_id: int):
                     """
                 ),
                 {
-                    "occurrence_id": occurrence_id,
+                    "priority": new_priority or current_row["priority"],
+                "occurrence_id": occurrence_id,
                     "file_name": file.name,
                     "mime_type": file.type,
                     "file_data": file.getvalue(),
@@ -339,7 +342,7 @@ def add_attachment(occurrence_id: int, uploaded_files: List, user_id: int):
             )
 
 
-def add_update(occurrence_id: int, user_id: int, note: str, new_status: Optional[str] = None, assigned_to: Optional[int] = None):
+def add_update(occurrence_id: int, user_id: int, note: str, new_status: Optional[str] = None, assigned_to: Optional[int] = None, new_priority: Optional[str] = None):
     current = get_occurrence_by_id(occurrence_id)
     if current.empty:
         return
@@ -355,6 +358,7 @@ def add_update(occurrence_id: int, user_id: int, note: str, new_status: Optional
                 UPDATE occurrences
                 SET status = :status,
                     assigned_to = :assigned_to,
+                    priority = :priority,
                     updated_at = NOW()
                 WHERE id = :occurrence_id
                 """
@@ -362,6 +366,7 @@ def add_update(occurrence_id: int, user_id: int, note: str, new_status: Optional
             {
                 "status": status_to_apply,
                 "assigned_to": assigned_to if assigned_to not in (None, "") else current_row["assigned_to"],
+                "priority": new_priority or current_row["priority"],
                 "occurrence_id": occurrence_id,
             },
         )
@@ -376,6 +381,7 @@ def add_update(occurrence_id: int, user_id: int, note: str, new_status: Optional
                 """
             ),
             {
+                "priority": new_priority or current_row["priority"],
                 "occurrence_id": occurrence_id,
                 "user_id": user_id,
                 "action_type": "status" if new_status else "comentario",
@@ -417,6 +423,7 @@ def close_occurrence(occurrence_id: int, user_id: int, closure_notes: str):
                 """
             ),
             {
+                "priority": new_priority or current_row["priority"],
                 "occurrence_id": occurrence_id,
                 "user_id": user_id,
                 "previous_status": previous_status,
@@ -573,6 +580,34 @@ def delete_department(department_id: int):
         raise ValueError("Não é possível excluir setor vinculado a usuários.")
     run_execute("DELETE FROM departments WHERE id = :id", {"id": department_id})
 
+def list_user_departments(user_id: int) -> pd.DataFrame:
+    return run_select("""
+        SELECT d.id, d.name
+        FROM user_departments ud
+        INNER JOIN departments d ON d.id = ud.department_id
+        WHERE ud.user_id = :user_id
+        ORDER BY d.name
+    """, {"user_id": user_id})
+
+
+def assign_user_department(user_id: int, department_id: int):
+    run_execute("INSERT IGNORE INTO user_departments (user_id, department_id) VALUES (:user_id, :department_id)", {"user_id": user_id, "department_id": department_id})
+
+
+def remove_user_department(user_id: int, department_id: int):
+    run_execute("DELETE FROM user_departments WHERE user_id = :user_id AND department_id = :department_id", {"user_id": user_id, "department_id": department_id})
+
+
+def create_department(name: str):
+    run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
+
+
+def delete_department(department_id: int):
+    linked = fetch_scalar("SELECT COUNT(*) FROM user_departments WHERE department_id = :id", {"id": department_id}) or 0
+    if int(linked) > 0:
+        raise ValueError("Não é possível excluir setor vinculado a usuários.")
+    run_execute("DELETE FROM departments WHERE id = :id", {"id": department_id})
+
 def toggle_user_status(user_id: int, is_active: bool):
     run_execute(
         "UPDATE users SET is_active = :is_active, updated_at = NOW() WHERE id = :user_id",
@@ -696,6 +731,7 @@ def render_sidebar(user: dict):
         "atendente": ["Dashboard", "Fila de atendimento", "Detalhe da ocorrência"],
         "gestor": ["Dashboard", "Relatórios", "Detalhe da ocorrência"],
         "administrador": ["Dashboard", "Usuários", "Setores", "Logs"],
+        "supervisor": ["Dashboard", "Triagem", "Detalhe da ocorrência"],
     }
 
     options = pages_by_role[role]
@@ -829,6 +865,23 @@ def render_queue(user: dict):
     render_occurrences_table(df)
     open_detail_button(df, "queue_list")
 
+
+
+
+def render_supervisor_dashboard(user: dict):
+    render_hero("Painel do supervisor", "Triagem das ocorrências: priorização e delegação para atendentes.")
+    df = get_occurrences("gestor", int(user["id"]))
+    metric_cards(metrics_for_user("gestor", int(user["id"])))
+    st.markdown("### Ocorrências para triagem")
+    render_occurrences_table(df.head(20))
+    open_detail_button(df, "supervisor_dashboard")
+
+
+def render_supervisor_triage(user: dict):
+    render_hero("Triagem de tarefas", "Ajuste criticidade e delegue chamados para atendentes.")
+    df = get_occurrences("gestor", int(user["id"]))
+    render_occurrences_table(df)
+    open_detail_button(df, "supervisor_queue")
 
 def render_manager_dashboard(user: dict):
     render_hero("Relatórios e indicadores", "Painel gerencial para análise de volume, tempos de resposta e recorrências.")
@@ -1097,16 +1150,18 @@ def render_occurrence_detail(user: dict):
             index=0 if role == "solicitante" else 1,
         )
         selected_assignee = st.selectbox("Responsável", list(attendant_map.keys()))
+        selected_priority = st.selectbox("Nova criticidade", ["Sem alteração"] + PRIORITY_OPTIONS, index=0)
         new_files = st.file_uploader("Novos anexos", accept_multiple_files=True, key="detail_files")
         submitted = st.form_submit_button("Salvar atualização")
         if submitted:
-            if not note.strip() and not new_files and selected_status == "Sem alteração" and selected_assignee == "Manter responsável atual":
+            if not note.strip() and not new_files and selected_status == "Sem alteração" and selected_assignee == "Manter responsável atual" and selected_priority == "Sem alteração":
                 st.error("Informe ao menos um comentário, uma mudança de status, um responsável ou um anexo.")
             else:
                 if role == "solicitante":
                     # Solicitante pode comentar e anexar, mas não alterar status/atribuição.
                     selected_status = "Sem alteração"
                     selected_assignee = "Manter responsável atual"
+                    selected_priority = "Sem alteração"
                 try:
                     add_update(
                         int(occurrence_id),
@@ -1114,6 +1169,7 @@ def render_occurrence_detail(user: dict):
                         note.strip() or "Atualização registrada.",
                         None if selected_status == "Sem alteração" else selected_status,
                         attendant_map[selected_assignee],
+                        None if selected_priority == "Sem alteração" else selected_priority,
                     )
                     if new_files:
                         valid, msg = validate_files(new_files)
@@ -1177,6 +1233,13 @@ def main():
             render_manager_dashboard(user)
         elif page == "Relatórios":
             render_reports(user)
+        else:
+            render_occurrence_detail(user)
+    elif role == "supervisor":
+        if page == "Dashboard":
+            render_supervisor_dashboard(user)
+        elif page == "Triagem":
+            render_supervisor_triage(user)
         else:
             render_occurrence_detail(user)
     elif role == "administrador":

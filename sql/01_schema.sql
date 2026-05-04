@@ -26,7 +26,7 @@ CREATE TABLE users (
 
 CREATE TABLE profiles (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name ENUM('solicitante', 'atendente', 'gestor', 'administrador') NOT NULL UNIQUE,
+    name ENUM('solicitante', 'atendente', 'gestor', 'administrador', 'supervisor') NOT NULL UNIQUE,
     label VARCHAR(40) NOT NULL
 ) ENGINE=InnoDB;
 

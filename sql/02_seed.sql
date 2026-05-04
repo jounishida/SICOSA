@@ -17,27 +17,36 @@ INSERT INTO departments (id, name) VALUES
 (1, 'Almoxarifado'),
 (2, 'Setor de Apoio'),
 (3, 'Gestão'),
-(4, 'TI');
+(4, 'TI'),
+(5, 'Jurídico'),
+(6, 'Financeiro'),
+(7, 'Recursos Humanos'),
+(8, 'Compras'),
+(9, 'Comercial'),
+(10, 'Operações');
 
 INSERT INTO user_departments (user_id, department_id) VALUES
 (1, 1),
 (2, 2),
 (3, 2),
 (4, 3),
-(5, 4);
+(5, 4),
+(4, 5);
 
 INSERT INTO profiles (id, name, label) VALUES
 (1, 'solicitante', 'Solicitante'),
 (2, 'atendente', 'Atendente'),
 (3, 'gestor', 'Gestor'),
-(4, 'administrador', 'Administrador');
+(4, 'administrador', 'Administrador'),
+(5, 'supervisor', 'Supervisor');
 
 INSERT INTO user_profiles (user_id, profile_id) VALUES
 (1, 1),
 (2, 2),
 (3, 2),
 (4, 3),
-(5, 4);
+(5, 4),
+(4, 5);
 
 INSERT INTO occurrences (
     id, protocol, requester_id, title, description, department, category,

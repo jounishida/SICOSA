@@ -2,7 +2,7 @@ USE suporte_ocorrencias;
 
 CREATE TABLE IF NOT EXISTS profiles (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name ENUM('solicitante', 'atendente', 'gestor', 'administrador') NOT NULL UNIQUE,
+    name ENUM('solicitante', 'atendente', 'gestor', 'administrador', 'supervisor') NOT NULL UNIQUE,
     label VARCHAR(40) NOT NULL
 ) ENGINE=InnoDB;
 
@@ -23,7 +23,8 @@ INSERT IGNORE INTO profiles (name, label) VALUES
 ('solicitante', 'Solicitante'),
 ('atendente', 'Atendente'),
 ('gestor', 'Gestor'),
-('administrador', 'Administrador');
+('administrador', 'Administrador'),
+('supervisor', 'Supervisor');
 
 SET @has_role_col = (
     SELECT COUNT(*)
@@ -59,3 +60,16 @@ CREATE TABLE IF NOT EXISTS user_departments (
     CONSTRAINT fk_user_departments_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_user_departments_department FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
+
+
+INSERT IGNORE INTO departments (name) VALUES
+('Jurídico'),
+('Financeiro'),
+('Recursos Humanos'),
+('Compras'),
+('Comercial'),
+('Operações'),
+('TI'),
+('Setor de Apoio'),
+('Almoxarifado'),
+('Gestão');
