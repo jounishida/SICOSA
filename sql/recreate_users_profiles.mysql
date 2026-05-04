@@ -1,0 +1,56 @@
+USE suporte_ocorrencias;
+
+-- Script para recriar tabela users e criar profiles/user_profiles.
+-- Atenção: remove tabelas dependentes para evitar erro de FK.
+
+SET FOREIGN_KEY_CHECKS = 0;
+
+DROP TABLE IF EXISTS occurrence_attachments;
+DROP TABLE IF EXISTS occurrence_updates;
+DROP TABLE IF EXISTS occurrences;
+DROP TABLE IF EXISTS user_profiles;
+DROP TABLE IF EXISTS profiles;
+DROP TABLE IF EXISTS users;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    full_name VARCHAR(120) NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    password_hash CHAR(64) NOT NULL,
+    department VARCHAR(100) NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_login DATETIME NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE profiles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name ENUM('solicitante', 'atendente', 'gestor', 'administrador') NOT NULL UNIQUE,
+    label VARCHAR(40) NOT NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE user_profiles (
+    user_id INT NOT NULL,
+    profile_id INT NOT NULL,
+    PRIMARY KEY (user_id, profile_id),
+    CONSTRAINT fk_user_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_user_profiles_profile FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO profiles (name, label) VALUES
+('solicitante', 'Solicitante'),
+('atendente', 'Atendente'),
+('gestor', 'Gestor'),
+('administrador', 'Administrador');
+
+
+CREATE TABLE IF NOT EXISTS user_departments (
+    user_id INT NOT NULL,
+    department_id INT NOT NULL,
+    PRIMARY KEY (user_id, department_id),
+    CONSTRAINT fk_user_departments_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_user_departments_department FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
