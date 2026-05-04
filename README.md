@@ -57,6 +57,17 @@ Depois carregue a massa inicial:
 mysql -u root -p suporte_ocorrencias < sql/02_seed.sql
 ```
 
+
+### 3.1) Migração para múltiplos perfis (quem já tem banco criado)
+
+Se o seu banco já existe com a coluna `users.role`, rode antes:
+
+```bash
+mysql -u root -p suporte_ocorrencias < sql/03_migrate_profiles.sql
+```
+
+Esse script move os perfis para `user_profiles` e remove `role` da tabela `users`.
+
 ### 4) Configure a conexão com o MySQL
 
 Copie o arquivo de exemplo e ajuste a URL:

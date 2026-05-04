@@ -106,12 +106,14 @@ init_state()
 # =========================
 def authenticate_user(email: str, password: str, role: str) -> Optional[dict]:
     query = """
-        SELECT id, full_name, email, role, department, is_active
-        FROM users
-        WHERE email = :email
-          AND role = :role
-          AND password_hash = :password_hash
-          AND is_active = 1
+        SELECT u.id, u.full_name, u.email, p.name AS role, u.is_active
+        FROM users u
+        INNER JOIN user_profiles up ON up.user_id = u.id
+        INNER JOIN profiles p ON p.id = up.profile_id
+        WHERE u.email = :email
+          AND p.name = :role
+          AND u.password_hash = :password_hash
+          AND u.is_active = 1
         LIMIT 1
     """
     params = {"email": email.strip().lower(), "role": role, "password_hash": hash_password(password)}
@@ -169,8 +171,7 @@ def create_occurrence(payload: dict, attachments: List[dict]):
                 "requester_id": payload["requester_id"],
                 "title": payload["title"],
                 "description": payload["description"],
-                "department": payload["department"],
-                "category": payload["category"],
+                                "category": payload["category"],
                 "priority": payload["priority"],
                 "assigned_to": payload.get("assigned_to"),
                 "due_at": due_at,
@@ -304,9 +305,11 @@ def get_occurrence_attachments(occurrence_id: int) -> pd.DataFrame:
 def get_active_attendants() -> pd.DataFrame:
     return run_select(
         """
-        SELECT id, full_name
-        FROM users
-        WHERE role = 'atendente' AND is_active = 1
+        SELECT u.id, u.full_name
+        FROM users u
+        INNER JOIN user_profiles up ON up.user_id = u.id
+        INNER JOIN profiles p ON p.id = up.profile_id
+        WHERE u.is_active = 1 AND p.name = 'atendente'
         ORDER BY full_name
         """
     )
@@ -492,28 +495,83 @@ def mean_resolution_time_hours() -> float:
 def list_users() -> pd.DataFrame:
     return run_select(
         """
-        SELECT id, full_name, email, role, department, is_active, created_at, last_login
-        FROM users
-        ORDER BY full_name
+        SELECT
+            u.id,
+            u.full_name,
+            u.email,
+            GROUP_CONCAT(DISTINCT p.name ORDER BY p.name SEPARATOR ',') AS roles,
+            GROUP_CONCAT(DISTINCT d.name ORDER BY d.name SEPARATOR ',') AS departments,
+            u.is_active,
+            u.created_at,
+            u.last_login
+        FROM users u
+        LEFT JOIN user_profiles up ON up.user_id = u.id
+        LEFT JOIN profiles p ON p.id = up.profile_id
+        LEFT JOIN user_departments ud ON ud.user_id = u.id
+        LEFT JOIN departments d ON d.id = ud.department_id
+        GROUP BY u.id, u.full_name, u.email, u.is_active, u.created_at, u.last_login
+        ORDER BY u.full_name
         """
     )
 
 
 def create_user(payload: dict):
-    run_execute(
-        """
-        INSERT INTO users (full_name, email, password_hash, role, department, is_active)
-        VALUES (:full_name, :email, :password_hash, :role, :department, 1)
-        """,
-        {
-            "full_name": payload["full_name"],
-            "email": payload["email"].strip().lower(),
-            "password_hash": hash_password(payload["password"]),
-            "role": payload["role"],
-            "department": payload["department"],
-        },
-    )
+    engine = get_engine()
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("""
+            INSERT INTO users (full_name, email, password_hash, is_active)
+            VALUES (:full_name, :email, :password_hash, 1)
+            """),
+            {
+                "full_name": payload["full_name"],
+                "email": payload["email"].strip().lower(),
+                "password_hash": hash_password(payload["password"]),
+                            },
+        )
+        user_id = result.lastrowid
+        conn.execute(
+            text("""
+            INSERT INTO user_profiles (user_id, profile_id)
+            SELECT :user_id, id FROM profiles WHERE name = :role
+            """),
+            {"user_id": user_id, "role": payload["role"]},
+        )
 
+
+
+
+def list_departments() -> pd.DataFrame:
+    return run_select("SELECT id, name FROM departments ORDER BY name")
+
+
+def list_user_departments(user_id: int) -> pd.DataFrame:
+    return run_select("""
+        SELECT d.id, d.name
+        FROM user_departments ud
+        INNER JOIN departments d ON d.id = ud.department_id
+        WHERE ud.user_id = :user_id
+        ORDER BY d.name
+    """, {"user_id": user_id})
+
+
+def assign_user_department(user_id: int, department_id: int):
+    run_execute("INSERT IGNORE INTO user_departments (user_id, department_id) VALUES (:user_id, :department_id)", {"user_id": user_id, "department_id": department_id})
+
+
+def remove_user_department(user_id: int, department_id: int):
+    run_execute("DELETE FROM user_departments WHERE user_id = :user_id AND department_id = :department_id", {"user_id": user_id, "department_id": department_id})
+
+
+def create_department(name: str):
+    run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
+
+
+def delete_department(department_id: int):
+    linked = fetch_scalar("SELECT COUNT(*) FROM user_departments WHERE department_id = :id", {"id": department_id}) or 0
+    if int(linked) > 0:
+        raise ValueError("Não é possível excluir setor vinculado a usuários.")
+    run_execute("DELETE FROM departments WHERE id = :id", {"id": department_id})
 
 def toggle_user_status(user_id: int, is_active: bool):
     run_execute(
@@ -637,7 +695,7 @@ def render_sidebar(user: dict):
         "solicitante": ["Dashboard", "Nova ocorrência", "Minhas ocorrências", "Detalhe da ocorrência"],
         "atendente": ["Dashboard", "Fila de atendimento", "Detalhe da ocorrência"],
         "gestor": ["Dashboard", "Relatórios", "Detalhe da ocorrência"],
-        "administrador": ["Dashboard", "Usuários", "Logs", "Detalhe da ocorrência"],
+        "administrador": ["Dashboard", "Usuários", "Setores", "Logs"],
     }
 
     options = pages_by_role[role]
@@ -671,7 +729,9 @@ def render_new_occurrence(user: dict):
         col1, col2 = st.columns(2)
         with col1:
             title = st.text_input("Título resumido")
-            department = st.text_input("Setor", value=user.get("department") or "")
+            user_depts = list_user_departments(int(user["id"]))
+            dept_options = [""] + user_depts["name"].tolist()
+            department = st.selectbox("Setor", dept_options, index=1 if len(dept_options) > 1 else 0)
             category = st.text_input("Categoria", placeholder="Ex.: Infraestrutura, Materiais, Suporte")
         with col2:
             priority = st.selectbox("Prioridade", PRIORITY_OPTIONS, index=1)
@@ -832,8 +892,14 @@ def render_admin_dashboard(user: dict):
     st.markdown("### Perfis ativos")
     users_df = list_users()
     if not users_df.empty:
-        grouped = users_df.groupby("role").size().reset_index(name="quantidade")
-        grouped["role"] = grouped["role"].map(ROLE_LABELS)
+        role_rows = []
+        for _, r in users_df.iterrows():
+            for rr in (r["roles"] or "").split(","):
+                rr = rr.strip()
+                if rr:
+                    role_rows.append(rr)
+        grouped = pd.DataFrame({"role": role_rows}).groupby("role").size().reset_index(name="quantidade") if role_rows else pd.DataFrame(columns=["role","quantidade"])
+        grouped["role"] = grouped["role"].map(lambda x: ROLE_LABELS.get(x, x))
         safe_dataframe(grouped.rename(columns={"role": "Perfil", "quantidade": "Quantidade"}), hide_index=True, use_container_width=True)
 
 
@@ -844,10 +910,9 @@ def render_admin_users():
         c1, c2 = st.columns(2)
         full_name = c1.text_input("Nome completo")
         email = c2.text_input("E-mail")
-        c3, c4, c5 = st.columns(3)
+        c3, c4 = st.columns(2)
         role = c3.selectbox("Perfil", list(ROLE_LABELS.keys()), format_func=lambda x: ROLE_LABELS[x])
-        department = c4.text_input("Setor")
-        password = c5.text_input("Senha inicial", type="password", value="Senha@123")
+        password = c4.text_input("Senha inicial", type="password", value="Senha@123")
         submitted = st.form_submit_button("Criar usuário")
         if submitted:
             if not full_name.strip() or not email.strip() or not password.strip():
@@ -865,8 +930,7 @@ def render_admin_users():
                         "email": email,
                         "password": password,
                         "role": role,
-                        "department": department,
-                    })
+                                            })
                     st.success("Usuário criado com sucesso.")
                 except SQLAlchemyError as e:
                     show_db_error(e)
@@ -877,18 +941,54 @@ def render_admin_users():
         st.info("Nenhum usuário cadastrado.")
         return
     display_df = users.copy()
-    display_df["role"] = display_df["role"].map(ROLE_LABELS)
+    display_df["roles"] = display_df["roles"].fillna("").apply(lambda x: ", ".join(ROLE_LABELS.get(i.strip(), i.strip()) for i in x.split(",") if i.strip()))
     display_df["is_active"] = display_df["is_active"].map({1: "Ativo", 0: "Inativo"})
-    display_df.columns = ["ID", "Nome", "E-mail", "Perfil", "Setor", "Status", "Criado em", "Último acesso"]
+    display_df.columns = ["ID", "Nome", "E-mail", "Perfis", "Setores", "Status", "Criado em", "Último acesso"]
     safe_dataframe(display_df, hide_index=True, use_container_width=True, height=380)
 
-    user_options = {f"{row['full_name']} — {ROLE_LABELS[row['role']]}": (int(row['id']), bool(row['is_active'])) for _, row in users.iterrows()}
+    user_options = {f"{row['full_name']} — {row['roles'] or 'Sem perfil'}": (int(row['id']), bool(row['is_active'])) for _, row in users.iterrows()}
     selected = st.selectbox("Alterar status de usuário", list(user_options.keys()))
     if st.button("Ativar/Inativar usuário"):
         user_id, is_active = user_options[selected]
         toggle_user_status(user_id, is_active)
         st.success("Status do usuário atualizado.")
         st.rerun()
+
+
+
+
+def render_admin_departments():
+    render_hero("Gestão de setores", "Criação, exclusão e vínculo de setores aos usuários.")
+    with st.form("create_department_form"):
+        name = st.text_input("Novo setor")
+        if st.form_submit_button("Criar setor"):
+            if name.strip():
+                create_department(name)
+                st.success("Setor criado.")
+                st.rerun()
+    departments = list_departments()
+    users = list_users()
+    if not departments.empty:
+        dep_map = {row["name"]: int(row["id"]) for _, row in departments.iterrows()}
+        dep_sel = st.selectbox("Excluir setor", list(dep_map.keys()))
+        if st.button("Excluir setor"):
+            try:
+                delete_department(dep_map[dep_sel])
+                st.success("Setor removido.")
+                st.rerun()
+            except ValueError as e:
+                st.error(str(e))
+
+    st.markdown("### Vincular setor a usuário")
+    if not users.empty and not departments.empty:
+        user_map = {f"{r['full_name']} ({r['email']})": int(r['id']) for _, r in users.iterrows()}
+        dep_map = {row["name"]: int(row["id"]) for _, row in departments.iterrows()}
+        c1, c2 = st.columns(2)
+        us = c1.selectbox("Usuário", list(user_map.keys()))
+        dp = c2.selectbox("Setor", list(dep_map.keys()))
+        if st.button("Vincular setor"):
+            assign_user_department(user_map[us], dep_map[dp])
+            st.success("Setor vinculado.")
 
 
 def render_admin_logs():
@@ -1084,10 +1184,10 @@ def main():
             render_admin_dashboard(user)
         elif page == "Usuários":
             render_admin_users()
-        elif page == "Logs":
-            render_admin_logs()
+        elif page == "Setores":
+            render_admin_departments()
         else:
-            render_occurrence_detail(user)
+            render_admin_logs()
 
 
 if __name__ == "__main__":
