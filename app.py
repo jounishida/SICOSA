@@ -569,29 +569,6 @@ def assign_user_department(user_id: int, department_id: int):
 def remove_user_department(user_id: int, department_id: int):
     run_execute("DELETE FROM user_departments WHERE user_id = :user_id AND department_id = :department_id", {"user_id": user_id, "department_id": department_id})
 
-def remove_user_department(user_id: int, department_id: int):
-    run_execute("DELETE FROM user_departments WHERE user_id = :user_id AND department_id = :department_id", {"user_id": user_id, "department_id": department_id})
-
-
-def create_department(name: str):
-    run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
-
-
-def delete_department(department_id: int):
-    linked = fetch_scalar("SELECT COUNT(*) FROM user_departments WHERE department_id = :id", {"id": department_id}) or 0
-    if int(linked) > 0:
-        raise ValueError("Não é possível excluir setor vinculado a usuários.")
-    run_execute("DELETE FROM departments WHERE id = :id", {"id": department_id})
-
-def create_department(name: str):
-    run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
-
-
-def delete_department(department_id: int):
-    linked = fetch_scalar("SELECT COUNT(*) FROM user_departments WHERE department_id = :id", {"id": department_id}) or 0
-    if int(linked) > 0:
-        raise ValueError("Não é possível excluir setor vinculado a usuários.")
-    run_execute("DELETE FROM departments WHERE id = :id", {"id": department_id})
 
 def create_department(name: str):
     run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
@@ -1067,9 +1044,19 @@ def render_admin_logs():
 def render_occurrence_detail(user: dict):
     role = user["role"]
     scope_role = "gestor" if role == "supervisor" else role
-    visible = get_occurrences(scope_role, int(user["id"]))
+
+    fc1, fc2, fc3 = st.columns([1, 1, 2])
+    status = fc1.selectbox("Status", [""] + STATUS_OPTIONS, format_func=lambda x: x or "Todos", key="detail_filter_status")
+    priority = fc2.selectbox("Prioridade", [""] + PRIORITY_OPTIONS, format_func=lambda x: x or "Todas", key="detail_filter_priority")
+    search = fc3.text_input("Pesquisar por protocolo, título ou descrição", key="detail_filter_search")
+
+    visible = get_occurrences(
+        scope_role,
+        int(user["id"]),
+        filters={"status": status or None, "priority": priority or None, "search": search or None},
+    )
     if visible.empty:
-        st.warning("Nenhuma ocorrência disponível para este perfil.")
+        st.warning("Nenhuma ocorrência disponível para os filtros selecionados.")
         return
 
     options = {f"{row['protocol']} — {row['title']}": int(row['id']) for _, row in visible.iterrows()}
