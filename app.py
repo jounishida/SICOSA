@@ -106,7 +106,7 @@ init_state()
 # =========================
 def authenticate_user(email: str, password: str, role: str) -> Optional[dict]:
     query = """
-        SELECT u.id, u.full_name, u.email, p.name AS role, u.department, u.is_active
+        SELECT u.id, u.full_name, u.email, p.name AS role, u.is_active
         FROM users u
         INNER JOIN user_profiles up ON up.user_id = u.id
         INNER JOIN profiles p ON p.id = up.profile_id
@@ -253,6 +253,17 @@ def get_occurrences(role: str, user_id: int, filters: Optional[Dict] = None) -> 
 
     if role == "solicitante":
         query += " AND o.requester_id = :user_id "
+        params["user_id"] = user_id
+    elif role == "atendente":
+        query += """
+            AND EXISTS (
+                SELECT 1
+                FROM user_departments ud
+                INNER JOIN departments d ON d.id = ud.department_id
+                WHERE ud.user_id = :user_id
+                  AND d.name = o.department
+            )
+        """
         params["user_id"] = user_id
 
     if filters.get("status"):
@@ -506,15 +517,17 @@ def list_users() -> pd.DataFrame:
             u.id,
             u.full_name,
             u.email,
-            GROUP_CONCAT(p.name ORDER BY p.name SEPARATOR ',') AS roles,
-            u.department,
+            GROUP_CONCAT(DISTINCT p.name ORDER BY p.name SEPARATOR ',') AS roles,
+            GROUP_CONCAT(DISTINCT d.name ORDER BY d.name SEPARATOR ',') AS departments,
             u.is_active,
             u.created_at,
             u.last_login
         FROM users u
         LEFT JOIN user_profiles up ON up.user_id = u.id
         LEFT JOIN profiles p ON p.id = up.profile_id
-        GROUP BY u.id, u.full_name, u.email, u.department, u.is_active, u.created_at, u.last_login
+        LEFT JOIN user_departments ud ON ud.user_id = u.id
+        LEFT JOIN departments d ON d.id = ud.department_id
+        GROUP BY u.id, u.full_name, u.email, u.is_active, u.created_at, u.last_login
         ORDER BY u.full_name
         """
     )
@@ -525,15 +538,14 @@ def create_user(payload: dict):
     with engine.begin() as conn:
         result = conn.execute(
             text("""
-            INSERT INTO users (full_name, email, password_hash, department, is_active)
-            VALUES (:full_name, :email, :password_hash, :department, 1)
+            INSERT INTO users (full_name, email, password_hash, is_active)
+            VALUES (:full_name, :email, :password_hash, 1)
             """),
             {
                 "full_name": payload["full_name"],
                 "email": payload["email"].strip().lower(),
                 "password_hash": hash_password(payload["password"]),
-                "department": payload["department"],
-            },
+                            },
         )
         user_id = result.lastrowid
         conn.execute(
@@ -543,6 +555,60 @@ def create_user(payload: dict):
             """),
             {"user_id": user_id, "role": payload["role"]},
         )
+
+
+
+
+
+
+def list_profiles() -> pd.DataFrame:
+    return run_select("SELECT id, name, label FROM profiles ORDER BY id")
+
+
+def list_user_profiles(user_id: int) -> pd.DataFrame:
+    return run_select("""
+        SELECT p.id, p.name, p.label
+        FROM user_profiles up
+        INNER JOIN profiles p ON p.id = up.profile_id
+        WHERE up.user_id = :user_id
+        ORDER BY p.id
+    """, {"user_id": user_id})
+
+
+def assign_user_profile(user_id: int, profile_id: int):
+    run_execute("INSERT IGNORE INTO user_profiles (user_id, profile_id) VALUES (:user_id, :profile_id)", {"user_id": user_id, "profile_id": profile_id})
+
+
+def remove_user_profile(user_id: int, profile_id: int):
+    qty = fetch_scalar("SELECT COUNT(*) FROM user_profiles WHERE user_id = :user_id", {"user_id": user_id}) or 0
+    if int(qty) <= 1:
+        raise ValueError("O usuário deve possuir ao menos um perfil.")
+    run_execute("DELETE FROM user_profiles WHERE user_id = :user_id AND profile_id = :profile_id", {"user_id": user_id, "profile_id": profile_id})
+
+def list_departments() -> pd.DataFrame:
+    return run_select("SELECT id, name FROM departments ORDER BY name")
+
+
+def list_user_departments(user_id: int) -> pd.DataFrame:
+    return run_select("""
+        SELECT d.id, d.name
+        FROM user_departments ud
+        INNER JOIN departments d ON d.id = ud.department_id
+        WHERE ud.user_id = :user_id
+        ORDER BY d.name
+    """, {"user_id": user_id})
+
+
+def assign_user_department(user_id: int, department_id: int):
+    run_execute("INSERT IGNORE INTO user_departments (user_id, department_id) VALUES (:user_id, :department_id)", {"user_id": user_id, "department_id": department_id})
+
+
+def remove_user_department(user_id: int, department_id: int):
+    run_execute("DELETE FROM user_departments WHERE user_id = :user_id AND department_id = :department_id", {"user_id": user_id, "department_id": department_id})
+
+
+def create_department(name: str):
+    run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
 
 
 def delete_department(department_id: int):
@@ -701,10 +767,6 @@ def render_solicitante_dashboard(user: dict):
 
 def render_new_occurrence(user: dict):
     render_hero("Abertura de ocorrência", "Registro da demanda com dados mínimos padronizados e anexos de apoio.")
-    attendants = get_active_attendants()
-    attendant_options = {"Definição na triagem": None}
-    attendant_options.update({row["full_name"]: int(row["id"]) for _, row in attendants.iterrows()})
-
     with st.form("new_occurrence_form", clear_on_submit=False):
         col1, col2 = st.columns(2)
         with col1:
@@ -714,7 +776,6 @@ def render_new_occurrence(user: dict):
             department = st.selectbox("Setor", dept_options, index=1 if len(dept_options) > 1 else 0)
         with col2:
             priority = st.selectbox("Prioridade", PRIORITY_OPTIONS, index=1)
-            assigned_label = st.selectbox("Responsável inicial", list(attendant_options.keys()))
             st.text_input("Data", value=datetime.now().strftime("%d/%m/%Y"), disabled=True)
 
         description = st.text_area(
@@ -741,7 +802,7 @@ def render_new_occurrence(user: dict):
                         "department": department.strip(),
                         "category": None,
                         "priority": priority,
-                        "assigned_to": attendant_options[assigned_label],
+                        "assigned_to": None,
                     }
                     valid, msg = validate_files(uploaded_files or [])
                     if not valid:
@@ -939,10 +1000,39 @@ def render_admin_users():
     display_df = users.copy()
     display_df["roles"] = display_df["roles"].fillna("").apply(lambda x: ", ".join(ROLE_LABELS.get(i.strip(), i.strip()) for i in x.split(",") if i.strip()))
     display_df["is_active"] = display_df["is_active"].map({1: "Ativo", 0: "Inativo"})
-    display_df.columns = ["ID", "Nome", "E-mail", "Perfis", "Setor", "Status", "Criado em", "Último acesso"]
+    display_df.columns = ["ID", "Nome", "E-mail", "Perfis", "Setores", "Status", "Criado em", "Último acesso"]
     safe_dataframe(display_df, hide_index=True, use_container_width=True, height=380)
 
     user_options = {f"{row['full_name']} — {row['roles'] or 'Sem perfil'}": (int(row['id']), bool(row['is_active'])) for _, row in users.iterrows()}
+
+    st.markdown("### Permissões de perfil por usuário")
+    selected_user_label = st.selectbox("Selecionar usuário", list(user_options.keys()), key="profile_user_sel")
+    selected_user_id = user_options[selected_user_label][0]
+    all_profiles = list_profiles()
+    current_profiles = list_user_profiles(selected_user_id)
+
+    colp1, colp2 = st.columns(2)
+    with colp1:
+        add_map = {row['label']: int(row['id']) for _, row in all_profiles.iterrows()}
+        add_choice = st.selectbox("Adicionar perfil", list(add_map.keys()), key="add_profile_sel")
+        if st.button("Adicionar permissão"):
+            assign_user_profile(selected_user_id, add_map[add_choice])
+            st.success("Permissão adicionada.")
+            st.rerun()
+    with colp2:
+        if current_profiles.empty:
+            st.info("Usuário sem perfis cadastrados.")
+        else:
+            rem_map = {row['label']: int(row['id']) for _, row in current_profiles.iterrows()}
+            rem_choice = st.selectbox("Remover perfil", list(rem_map.keys()), key="rem_profile_sel")
+            if st.button("Remover permissão"):
+                try:
+                    remove_user_profile(selected_user_id, rem_map[rem_choice])
+                    st.success("Permissão removida.")
+                    st.rerun()
+                except ValueError as e:
+                    st.error(str(e))
+
     selected = st.selectbox("Alterar status de usuário", list(user_options.keys()))
     if st.button("Ativar/Inativar usuário"):
         user_id, is_active = user_options[selected]
@@ -1103,6 +1193,11 @@ def render_occurrence_detail(user: dict):
             )
 
     st.markdown("### Registrar nova interação")
+    if user["role"] == "atendente" and (pd.isna(row["assigned_to"]) or row["assigned_to"] != int(user["id"])):
+        if st.button("Assumir chamado"):
+            add_update(int(occurrence_id), int(user["id"]), "Chamado assumido pelo atendente.", None, int(user["id"]), None)
+            st.success("Chamado assumido com sucesso.")
+            st.rerun()
     attendants = get_active_attendants()
     attendant_map = {"Manter responsável atual": None}
     attendant_map.update({row["full_name"]: int(row["id"]) for _, row in attendants.iterrows()})
