@@ -16,10 +16,15 @@ INSERT INTO profiles (id, name, label) VALUES
 (1, 'solicitante', 'Solicitante'),
 (2, 'atendente', 'Atendente'),
 (3, 'gestor', 'Gestor'),
-(4, 'administrador', 'Administrador');
+(4, 'supervisor', 'Supervisor'),
+(5, 'administrador', 'Administrador');
 
 INSERT INTO user_profiles (user_id, profile_id) VALUES
 (1, 1),
+(1, 2),
+(1, 3),
+(1, 4),
+(1, 5),
 (2, 2),
 (3, 2),
 (4, 3),
