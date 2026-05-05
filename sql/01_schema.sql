@@ -7,8 +7,6 @@ USE suporte_ocorrencias;
 DROP TABLE IF EXISTS occurrence_attachments;
 DROP TABLE IF EXISTS occurrence_updates;
 DROP TABLE IF EXISTS occurrences;
-DROP TABLE IF EXISTS user_departments;
-DROP TABLE IF EXISTS departments;
 DROP TABLE IF EXISTS user_profiles;
 DROP TABLE IF EXISTS profiles;
 DROP TABLE IF EXISTS users;
@@ -18,6 +16,7 @@ CREATE TABLE users (
     full_name VARCHAR(120) NOT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
     password_hash CHAR(64) NOT NULL,
+    department VARCHAR(100) NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -26,13 +25,8 @@ CREATE TABLE users (
 
 CREATE TABLE profiles (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name ENUM('solicitante', 'atendente', 'gestor', 'administrador', 'supervisor') NOT NULL UNIQUE,
+    name ENUM('solicitante', 'atendente', 'gestor', 'administrador') NOT NULL UNIQUE,
     label VARCHAR(40) NOT NULL
-) ENGINE=InnoDB;
-
-CREATE TABLE departments (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE
 ) ENGINE=InnoDB;
 
 CREATE TABLE user_profiles (
@@ -41,14 +35,6 @@ CREATE TABLE user_profiles (
     PRIMARY KEY (user_id, profile_id),
     CONSTRAINT fk_user_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_user_profiles_profile FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
-
-CREATE TABLE user_departments (
-    user_id INT NOT NULL,
-    department_id INT NOT NULL,
-    PRIMARY KEY (user_id, department_id),
-    CONSTRAINT fk_user_departments_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    CONSTRAINT fk_user_departments_department FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 CREATE TABLE occurrences (

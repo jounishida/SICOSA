@@ -106,7 +106,7 @@ init_state()
 # =========================
 def authenticate_user(email: str, password: str, role: str) -> Optional[dict]:
     query = """
-        SELECT u.id, u.full_name, u.email, p.name AS role, u.is_active
+        SELECT u.id, u.full_name, u.email, p.name AS role, u.department, u.is_active
         FROM users u
         INNER JOIN user_profiles up ON up.user_id = u.id
         INNER JOIN profiles p ON p.id = up.profile_id
@@ -506,17 +506,15 @@ def list_users() -> pd.DataFrame:
             u.id,
             u.full_name,
             u.email,
-            GROUP_CONCAT(DISTINCT p.name ORDER BY p.name SEPARATOR ',') AS roles,
-            GROUP_CONCAT(DISTINCT d.name ORDER BY d.name SEPARATOR ',') AS departments,
+            GROUP_CONCAT(p.name ORDER BY p.name SEPARATOR ',') AS roles,
+            u.department,
             u.is_active,
             u.created_at,
             u.last_login
         FROM users u
         LEFT JOIN user_profiles up ON up.user_id = u.id
         LEFT JOIN profiles p ON p.id = up.profile_id
-        LEFT JOIN user_departments ud ON ud.user_id = u.id
-        LEFT JOIN departments d ON d.id = ud.department_id
-        GROUP BY u.id, u.full_name, u.email, u.is_active, u.created_at, u.last_login
+        GROUP BY u.id, u.full_name, u.email, u.department, u.is_active, u.created_at, u.last_login
         ORDER BY u.full_name
         """
     )
@@ -527,14 +525,15 @@ def create_user(payload: dict):
     with engine.begin() as conn:
         result = conn.execute(
             text("""
-            INSERT INTO users (full_name, email, password_hash, is_active)
-            VALUES (:full_name, :email, :password_hash, 1)
+            INSERT INTO users (full_name, email, password_hash, department, is_active)
+            VALUES (:full_name, :email, :password_hash, :department, 1)
             """),
             {
                 "full_name": payload["full_name"],
                 "email": payload["email"].strip().lower(),
                 "password_hash": hash_password(payload["password"]),
-                            },
+                "department": payload["department"],
+            },
         )
         user_id = result.lastrowid
         conn.execute(
@@ -544,34 +543,6 @@ def create_user(payload: dict):
             """),
             {"user_id": user_id, "role": payload["role"]},
         )
-
-
-
-
-def list_departments() -> pd.DataFrame:
-    return run_select("SELECT id, name FROM departments ORDER BY name")
-
-
-def list_user_departments(user_id: int) -> pd.DataFrame:
-    return run_select("""
-        SELECT d.id, d.name
-        FROM user_departments ud
-        INNER JOIN departments d ON d.id = ud.department_id
-        WHERE ud.user_id = :user_id
-        ORDER BY d.name
-    """, {"user_id": user_id})
-
-
-def assign_user_department(user_id: int, department_id: int):
-    run_execute("INSERT IGNORE INTO user_departments (user_id, department_id) VALUES (:user_id, :department_id)", {"user_id": user_id, "department_id": department_id})
-
-
-def remove_user_department(user_id: int, department_id: int):
-    run_execute("DELETE FROM user_departments WHERE user_id = :user_id AND department_id = :department_id", {"user_id": user_id, "department_id": department_id})
-
-
-def create_department(name: str):
-    run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
 
 
 def delete_department(department_id: int):
@@ -967,7 +938,7 @@ def render_admin_users():
     display_df = users.copy()
     display_df["roles"] = display_df["roles"].fillna("").apply(lambda x: ", ".join(ROLE_LABELS.get(i.strip(), i.strip()) for i in x.split(",") if i.strip()))
     display_df["is_active"] = display_df["is_active"].map({1: "Ativo", 0: "Inativo"})
-    display_df.columns = ["ID", "Nome", "E-mail", "Perfis", "Setores", "Status", "Criado em", "Último acesso"]
+    display_df.columns = ["ID", "Nome", "E-mail", "Perfis", "Setor", "Status", "Criado em", "Último acesso"]
     safe_dataframe(display_df, hide_index=True, use_container_width=True, height=380)
 
     user_options = {f"{row['full_name']} — {row['roles'] or 'Sem perfil'}": (int(row['id']), bool(row['is_active'])) for _, row in users.iterrows()}
