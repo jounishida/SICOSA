@@ -171,8 +171,7 @@ def create_occurrence(payload: dict, attachments: List[dict]):
                 "requester_id": payload["requester_id"],
                 "title": payload["title"],
                 "description": payload["description"],
-                "department": payload["department"],
-                "category": payload["category"],
+                                "category": payload["category"],
                 "priority": payload["priority"],
                 "assigned_to": payload.get("assigned_to"),
                 "due_at": due_at,
@@ -190,6 +189,7 @@ def create_occurrence(payload: dict, attachments: List[dict]):
                 """
             ),
             {
+                "priority": new_priority or current_row["priority"],
                 "occurrence_id": occurrence_id,
                 "user_id": payload["requester_id"],
                 "note": "Ocorrência registrada pelo solicitante.",
@@ -208,7 +208,8 @@ def create_occurrence(payload: dict, attachments: List[dict]):
                     """
                 ),
                 {
-                    "occurrence_id": occurrence_id,
+                    "priority": new_priority or current_row["priority"],
+                "occurrence_id": occurrence_id,
                     "file_name": item["file_name"],
                     "mime_type": item["mime_type"],
                     "file_data": item["file_data"],
@@ -331,7 +332,8 @@ def add_attachment(occurrence_id: int, uploaded_files: List, user_id: int):
                     """
                 ),
                 {
-                    "occurrence_id": occurrence_id,
+                    "priority": new_priority or current_row["priority"],
+                "occurrence_id": occurrence_id,
                     "file_name": file.name,
                     "mime_type": file.type,
                     "file_data": file.getvalue(),
@@ -340,7 +342,7 @@ def add_attachment(occurrence_id: int, uploaded_files: List, user_id: int):
             )
 
 
-def add_update(occurrence_id: int, user_id: int, note: str, new_status: Optional[str] = None, assigned_to: Optional[int] = None):
+def add_update(occurrence_id: int, user_id: int, note: str, new_status: Optional[str] = None, assigned_to: Optional[int] = None, new_priority: Optional[str] = None):
     current = get_occurrence_by_id(occurrence_id)
     if current.empty:
         return
@@ -356,6 +358,7 @@ def add_update(occurrence_id: int, user_id: int, note: str, new_status: Optional
                 UPDATE occurrences
                 SET status = :status,
                     assigned_to = :assigned_to,
+                    priority = :priority,
                     updated_at = NOW()
                 WHERE id = :occurrence_id
                 """
@@ -363,6 +366,7 @@ def add_update(occurrence_id: int, user_id: int, note: str, new_status: Optional
             {
                 "status": status_to_apply,
                 "assigned_to": assigned_to if assigned_to not in (None, "") else current_row["assigned_to"],
+                "priority": new_priority or current_row["priority"],
                 "occurrence_id": occurrence_id,
             },
         )
@@ -377,6 +381,7 @@ def add_update(occurrence_id: int, user_id: int, note: str, new_status: Optional
                 """
             ),
             {
+                "priority": new_priority or current_row["priority"],
                 "occurrence_id": occurrence_id,
                 "user_id": user_id,
                 "action_type": "status" if new_status else "comentario",
@@ -418,6 +423,7 @@ def close_occurrence(occurrence_id: int, user_id: int, closure_notes: str):
                 """
             ),
             {
+                "priority": new_priority or current_row["priority"],
                 "occurrence_id": occurrence_id,
                 "user_id": user_id,
                 "previous_status": previous_status,
@@ -538,6 +544,12 @@ def create_user(payload: dict):
             {"user_id": user_id, "role": payload["role"]},
         )
 
+
+def delete_department(department_id: int):
+    linked = fetch_scalar("SELECT COUNT(*) FROM user_departments WHERE department_id = :id", {"id": department_id}) or 0
+    if int(linked) > 0:
+        raise ValueError("Não é possível excluir setor vinculado a usuários.")
+    run_execute("DELETE FROM departments WHERE id = :id", {"id": department_id})
 
 def toggle_user_status(user_id: int, is_active: bool):
     run_execute(
@@ -661,7 +673,8 @@ def render_sidebar(user: dict):
         "solicitante": ["Dashboard", "Nova ocorrência", "Minhas ocorrências", "Detalhe da ocorrência"],
         "atendente": ["Dashboard", "Fila de atendimento", "Detalhe da ocorrência"],
         "gestor": ["Dashboard", "Relatórios", "Detalhe da ocorrência"],
-        "administrador": ["Dashboard", "Usuários", "Logs", "Detalhe da ocorrência"],
+        "administrador": ["Dashboard", "Usuários", "Setores", "Logs"],
+        "supervisor": ["Dashboard", "Triagem", "Detalhe da ocorrência"],
     }
 
     options = pages_by_role[role]
@@ -695,8 +708,9 @@ def render_new_occurrence(user: dict):
         col1, col2 = st.columns(2)
         with col1:
             title = st.text_input("Título resumido")
-            department = st.text_input("Setor", value=user.get("department") or "")
-            category = st.text_input("Categoria", placeholder="Ex.: Infraestrutura, Materiais, Suporte")
+            user_depts = list_user_departments(int(user["id"]))
+            dept_options = [""] + user_depts["name"].tolist()
+            department = st.selectbox("Setor", dept_options, index=1 if len(dept_options) > 1 else 0)
         with col2:
             priority = st.selectbox("Prioridade", PRIORITY_OPTIONS, index=1)
             assigned_label = st.selectbox("Responsável inicial", list(attendant_options.keys()))
@@ -724,7 +738,7 @@ def render_new_occurrence(user: dict):
                         "title": title.strip(),
                         "description": description.strip(),
                         "department": department.strip(),
-                        "category": category.strip() or None,
+                        "category": None,
                         "priority": priority,
                         "assigned_to": attendant_options[assigned_label],
                     }
@@ -793,6 +807,23 @@ def render_queue(user: dict):
     render_occurrences_table(df)
     open_detail_button(df, "queue_list")
 
+
+
+
+def render_supervisor_dashboard(user: dict):
+    render_hero("Painel do supervisor", "Triagem das ocorrências: priorização e delegação para atendentes.")
+    df = get_occurrences("gestor", int(user["id"]))
+    metric_cards(metrics_for_user("gestor", int(user["id"])))
+    st.markdown("### Ocorrências para triagem")
+    render_occurrences_table(df.head(20))
+    open_detail_button(df, "supervisor_dashboard")
+
+
+def render_supervisor_triage(user: dict):
+    render_hero("Triagem de tarefas", "Ajuste criticidade e delegue chamados para atendentes.")
+    df = get_occurrences("gestor", int(user["id"]))
+    render_occurrences_table(df)
+    open_detail_button(df, "supervisor_queue")
 
 def render_manager_dashboard(user: dict):
     render_hero("Relatórios e indicadores", "Painel gerencial para análise de volume, tempos de resposta e recorrências.")
@@ -874,10 +905,9 @@ def render_admin_users():
         c1, c2 = st.columns(2)
         full_name = c1.text_input("Nome completo")
         email = c2.text_input("E-mail")
-        c3, c4, c5 = st.columns(3)
+        c3, c4 = st.columns(2)
         role = c3.selectbox("Perfil", list(ROLE_LABELS.keys()), format_func=lambda x: ROLE_LABELS[x])
-        department = c4.text_input("Setor")
-        password = c5.text_input("Senha inicial", type="password", value="Senha@123")
+        password = c4.text_input("Senha inicial", type="password", value="Senha@123")
         submitted = st.form_submit_button("Criar usuário")
         if submitted:
             if not full_name.strip() or not email.strip() or not password.strip():
@@ -895,8 +925,7 @@ def render_admin_users():
                         "email": email,
                         "password": password,
                         "role": role,
-                        "department": department,
-                    })
+                                            })
                     st.success("Usuário criado com sucesso.")
                 except SQLAlchemyError as e:
                     show_db_error(e)
@@ -919,6 +948,42 @@ def render_admin_users():
         toggle_user_status(user_id, is_active)
         st.success("Status do usuário atualizado.")
         st.rerun()
+
+
+
+
+def render_admin_departments():
+    render_hero("Gestão de setores", "Criação, exclusão e vínculo de setores aos usuários.")
+    with st.form("create_department_form"):
+        name = st.text_input("Novo setor")
+        if st.form_submit_button("Criar setor"):
+            if name.strip():
+                create_department(name)
+                st.success("Setor criado.")
+                st.rerun()
+    departments = list_departments()
+    users = list_users()
+    if not departments.empty:
+        dep_map = {row["name"]: int(row["id"]) for _, row in departments.iterrows()}
+        dep_sel = st.selectbox("Excluir setor", list(dep_map.keys()))
+        if st.button("Excluir setor"):
+            try:
+                delete_department(dep_map[dep_sel])
+                st.success("Setor removido.")
+                st.rerun()
+            except ValueError as e:
+                st.error(str(e))
+
+    st.markdown("### Vincular setor a usuário")
+    if not users.empty and not departments.empty:
+        user_map = {f"{r['full_name']} ({r['email']})": int(r['id']) for _, r in users.iterrows()}
+        dep_map = {row["name"]: int(row["id"]) for _, row in departments.iterrows()}
+        c1, c2 = st.columns(2)
+        us = c1.selectbox("Usuário", list(user_map.keys()))
+        dp = c2.selectbox("Setor", list(dep_map.keys()))
+        if st.button("Vincular setor"):
+            assign_user_department(user_map[us], dep_map[dp])
+            st.success("Setor vinculado.")
 
 
 def render_admin_logs():
@@ -948,10 +1013,34 @@ def render_admin_logs():
 
 
 def render_occurrence_detail(user: dict):
-    occurrence_id = st.session_state.get("selected_occurrence_id")
-    if not occurrence_id:
-        st.warning("Selecione uma ocorrência em uma das telas anteriores para ver o detalhe.")
+    role = user["role"]
+    scope_role = "gestor" if role == "supervisor" else role
+
+    fc1, fc2, fc3 = st.columns([1, 1, 2])
+    status = fc1.selectbox("Status", [""] + STATUS_OPTIONS, format_func=lambda x: x or "Todos", key="detail_filter_status")
+    priority = fc2.selectbox("Prioridade", [""] + PRIORITY_OPTIONS, format_func=lambda x: x or "Todas", key="detail_filter_priority")
+    search = fc3.text_input("Pesquisar por protocolo, título ou descrição", key="detail_filter_search")
+
+    visible = get_occurrences(
+        scope_role,
+        int(user["id"]),
+        filters={"status": status or None, "priority": priority or None, "search": search or None},
+    )
+    if visible.empty:
+        st.warning("Nenhuma ocorrência disponível para os filtros selecionados.")
         return
+
+    options = {f"{row['protocol']} — {row['title']}": int(row['id']) for _, row in visible.iterrows()}
+    current_id = st.session_state.get("selected_occurrence_id")
+    labels = list(options.keys())
+    current_label = labels[0]
+    for label, oid in options.items():
+        if oid == current_id:
+            current_label = label
+            break
+    selected_label = st.selectbox("Selecionar ocorrência", labels, index=labels.index(current_label), key="detail_picker")
+    occurrence_id = options[selected_label]
+    st.session_state["selected_occurrence_id"] = occurrence_id
 
     df = get_occurrence_by_id(int(occurrence_id))
     if df.empty:
@@ -1013,7 +1102,6 @@ def render_occurrence_detail(user: dict):
             )
 
     st.markdown("### Registrar nova interação")
-    role = user["role"]
     attendants = get_active_attendants()
     attendant_map = {"Manter responsável atual": None}
     attendant_map.update({row["full_name"]: int(row["id"]) for _, row in attendants.iterrows()})
@@ -1027,16 +1115,18 @@ def render_occurrence_detail(user: dict):
             index=0 if role == "solicitante" else 1,
         )
         selected_assignee = st.selectbox("Responsável", list(attendant_map.keys()))
+        selected_priority = st.selectbox("Nova criticidade", ["Sem alteração"] + PRIORITY_OPTIONS, index=0)
         new_files = st.file_uploader("Novos anexos", accept_multiple_files=True, key="detail_files")
         submitted = st.form_submit_button("Salvar atualização")
         if submitted:
-            if not note.strip() and not new_files and selected_status == "Sem alteração" and selected_assignee == "Manter responsável atual":
+            if not note.strip() and not new_files and selected_status == "Sem alteração" and selected_assignee == "Manter responsável atual" and selected_priority == "Sem alteração":
                 st.error("Informe ao menos um comentário, uma mudança de status, um responsável ou um anexo.")
             else:
                 if role == "solicitante":
                     # Solicitante pode comentar e anexar, mas não alterar status/atribuição.
                     selected_status = "Sem alteração"
                     selected_assignee = "Manter responsável atual"
+                    selected_priority = "Sem alteração"
                 try:
                     add_update(
                         int(occurrence_id),
@@ -1044,6 +1134,7 @@ def render_occurrence_detail(user: dict):
                         note.strip() or "Atualização registrada.",
                         None if selected_status == "Sem alteração" else selected_status,
                         attendant_map[selected_assignee],
+                        None if selected_priority == "Sem alteração" else selected_priority,
                     )
                     if new_files:
                         valid, msg = validate_files(new_files)
@@ -1109,15 +1200,22 @@ def main():
             render_reports(user)
         else:
             render_occurrence_detail(user)
+    elif role == "supervisor":
+        if page == "Dashboard":
+            render_supervisor_dashboard(user)
+        elif page == "Triagem":
+            render_supervisor_triage(user)
+        else:
+            render_occurrence_detail(user)
     elif role == "administrador":
         if page == "Dashboard":
             render_admin_dashboard(user)
         elif page == "Usuários":
             render_admin_users()
-        elif page == "Logs":
-            render_admin_logs()
+        elif page == "Setores":
+            render_admin_departments()
         else:
-            render_occurrence_detail(user)
+            render_admin_logs()
 
 
 if __name__ == "__main__":
