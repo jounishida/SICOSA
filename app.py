@@ -690,7 +690,7 @@ def render_occurrences_table(df: pd.DataFrame, height: int = 350):
 def render_login():
     render_hero(
         APP_NAME,
-        "Acesso inicial para solicitantes, atendentes, gestores e administradores.",
+        "Acesso inicial para solicitantes, atendentes, gestores, supervisor e administradores.",
     )
     col1, col2 = st.columns([1.15, 0.85], gap="large")
     with col1:
@@ -703,10 +703,11 @@ def render_login():
             - Solicitante
             - Atendente
             - Gestor
+            - Supervisor
             - Administrador
             """
         )
-        st.info("Usuários de exemplo no banco de dados usam a senha: **Senha@123**")
+
     with col2:
         with st.form("login_form"):
             st.subheader("Acessar plataforma")
@@ -730,7 +731,7 @@ def render_login():
 # =========================
 def render_sidebar(user: dict):
     role = user["role"]
-    st.sidebar.title("Navegação")
+    st.sidebar.title("SiCOSA")
     st.sidebar.caption(f"Perfil ativo: {ROLE_LABELS[role]}")
     st.sidebar.write(f"**{user['full_name']}**")
     st.sidebar.write(user["email"])
