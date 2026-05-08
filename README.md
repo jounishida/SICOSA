@@ -53,6 +53,7 @@ Depois carregue a massa inicial:
 mysql -u root -p suporte_ocorrencias < sql/02_seed.sql
 ```
 
+
 ### 4) Configure a conexão com o MySQL
 
 Copie o arquivo de exemplo e ajuste a URL:
