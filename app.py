@@ -633,8 +633,14 @@ def safe_dataframe(df: pd.DataFrame, **kwargs):
     try:
         st.dataframe(df, **kwargs)
     except Exception as exc:
-        if "pyarrow" in str(exc).lower():
-            st.warning("Não foi possível carregar o pyarrow neste ambiente. Exibindo tabela simplificada.")
+        message = str(exc).lower()
+        if (
+            "pyarrow" in message
+            or "numpy.core.multiarray" in message
+            or isinstance(exc, ImportError)
+            or isinstance(getattr(exc, "__cause__", None), ImportError)
+        ):
+            st.warning("Ambiente sem compatibilidade com pyarrow/numpy para grid avançada. Exibindo tabela simplificada.")
             st.table(df)
         else:
             raise
