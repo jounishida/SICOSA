@@ -832,9 +832,9 @@ def render_new_occurrence(user: dict):
 def render_my_occurrences(user: dict):
     render_hero("Consulta de ocorrências", "Pesquise, filtre e acesse o detalhe das ocorrências registradas.")
     c1, c2, c3 = st.columns([1, 1, 2])
-    status = c1.selectbox("Status", [""] + STATUS_OPTIONS, format_func=lambda x: x or "Todos")
-    priority = c2.selectbox("Prioridade", [""] + PRIORITY_OPTIONS, format_func=lambda x: x or "Todas")
-    search = c3.text_input("Pesquisar por protocolo, título ou descrição")
+    status = c1.selectbox("Status", [""] + STATUS_OPTIONS, format_func=lambda x: x or "Todos", key=f"my_occ_status_{user["role"]}_{user["id"]}")
+    priority = c2.selectbox("Prioridade", [""] + PRIORITY_OPTIONS, format_func=lambda x: x or "Todas", key=f"my_occ_priority_{user["role"]}_{user["id"]}")
+    search = c3.text_input("Pesquisar por protocolo, título ou descrição", key=f"my_occ_search_{user["role"]}_{user["id"]}")
 
     df = get_occurrences(
         user["role"],
