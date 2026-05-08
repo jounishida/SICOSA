@@ -40,7 +40,7 @@ INSERT INTO profiles (id, name, label) VALUES
 (4, 'administrador', 'Administrador'),
 (5, 'supervisor', 'Supervisor');
 
-INSERT INTO user_profiles (user_id, profile_id) VALUES
+INSERT IGNORE INTO user_profiles (user_id, profile_id) VALUES
 (1, 1),
 (1, 2),
 (1, 3),
@@ -49,8 +49,8 @@ INSERT INTO user_profiles (user_id, profile_id) VALUES
 (2, 2),
 (3, 2),
 (4, 3),
-(5, 4),
-(4, 5);
+(4, 5),
+(5, 4);
 
 INSERT INTO occurrences (
     id, protocol, requester_id, title, description, department, category,
