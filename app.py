@@ -106,7 +106,7 @@ init_state()
 # =========================
 def authenticate_user(email: str, password: str, role: str) -> Optional[dict]:
     query = """
-        SELECT u.id, u.full_name, u.email, p.name AS role, u.is_active
+        SELECT DISTINCT u.id, u.full_name, u.email, p.name AS role, u.is_active
         FROM users u
         INNER JOIN user_profiles up ON up.user_id = u.id
         INNER JOIN profiles p ON p.id = up.profile_id
@@ -318,12 +318,17 @@ def get_occurrence_attachments(occurrence_id: int) -> pd.DataFrame:
 def get_active_attendants() -> pd.DataFrame:
     return run_select(
         """
-        SELECT u.id, u.full_name
+        SELECT DISTINCT u.id, u.full_name
         FROM users u
-        INNER JOIN user_profiles up ON up.user_id = u.id
-        INNER JOIN profiles p ON p.id = up.profile_id
-        WHERE u.is_active = 1 AND p.name = 'atendente'
-        ORDER BY full_name
+        WHERE u.is_active = 1
+          AND EXISTS (
+              SELECT 1
+              FROM user_profiles up
+              INNER JOIN profiles p ON p.id = up.profile_id
+              WHERE up.user_id = u.id
+                AND p.name = 'atendente'
+          )
+        ORDER BY u.full_name
         """
     )
 
