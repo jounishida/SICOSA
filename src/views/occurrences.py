@@ -110,9 +110,9 @@ def render_occurrence_detail(user: dict):
     scope_role = "gestor" if role == "supervisor" else role
 
     fc1, fc2, fc3 = st.columns([1, 1, 2])
-    status = fc1.selectbox("Status", [""] + STATUS_OPTIONS, format_func=lambda x: x or "Todos", key="detail_filter_status")
+    status = fc1.selectbox("Situação", [""] + STATUS_OPTIONS, format_func=lambda x: x or "Todos", key="detail_filter_status")
     priority = fc2.selectbox("Prioridade", [""] + PRIORITY_OPTIONS, format_func=lambda x: x or "Todas", key="detail_filter_priority")
-    search = fc3.text_input("Pesquisar por protocolo, título ou descrição", key="detail_filter_search")
+    search = fc3.text_input("Título da ocorrência", placeholder="Digite protocolo, título ou descrição", key="detail_filter_search")
 
     visible = get_occurrences(
         scope_role,
