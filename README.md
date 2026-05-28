@@ -7,19 +7,13 @@ Projeto Streamlit com perfis de **solicitante**, **atendente**, **gestor** e **a
 ```text
 streamlit_ocorrencias/
 ├── app.py                    # bootstrap/configuração central e roteamento por perfil
-├── pages/                    # views/telas Streamlit por área funcional
-│   ├── admin.py
-│   ├── dashboards.py
-│   ├── layout.py
-│   ├── login.py
-│   ├── occurrences.py
-│   └── reports.py
 ├── src/
 │   ├── config.py             # constantes e configuração de ambiente
 │   ├── db.py                 # conexão e helpers de banco
 │   ├── security.py           # hash, validação de senha/e-mail/anexos
 │   ├── controllers/          # regras de negócio e acesso a dados por domínio
-│   └── ui/                   # componentes reutilizáveis de interface
+│   ├── ui/                   # componentes reutilizáveis de interface
+│   └── views/                # views/telas Streamlit sem ativar multipage automático
 ├── requirements.txt
 ├── README.md
 └── sql/

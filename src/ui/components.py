@@ -54,10 +54,6 @@ def safe_dataframe(df: pd.DataFrame, **kwargs):
         st.dataframe(df, **kwargs)
     except Exception as exc:
         if _is_grid_dependency_error(exc):
-            st.warning(
-                "Ambiente sem compatibilidade com pyarrow/numpy para a grade avançada. "
-                "Exibindo tabela HTML simplificada."
-            )
             _render_html_table(df)
         else:
             raise

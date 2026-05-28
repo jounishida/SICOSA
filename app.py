@@ -1,24 +1,24 @@
 import streamlit as st
 from sqlalchemy.exc import SQLAlchemyError
 
-from pages.admin import render_admin_departments, render_admin_logs, render_admin_users
-from pages.dashboards import (
+from src.views.admin import render_admin_departments, render_admin_logs, render_admin_users
+from src.views.dashboards import (
     render_admin_dashboard,
     render_atendente_dashboard,
     render_manager_dashboard,
     render_solicitante_dashboard,
     render_supervisor_dashboard,
 )
-from pages.layout import render_sidebar
-from pages.login import render_login
-from pages.occurrences import (
+from src.views.layout import render_sidebar
+from src.views.login import render_login
+from src.views.occurrences import (
     render_my_occurrences,
     render_new_occurrence,
     render_occurrence_detail,
     render_queue,
     render_supervisor_triage,
 )
-from pages.reports import render_reports
+from src.views.reports import render_reports
 from src.ui.components import show_db_error
 
 
