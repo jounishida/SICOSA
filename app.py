@@ -622,6 +622,16 @@ def delete_department(department_id: int):
         raise ValueError("Não é possível excluir setor vinculado a usuários.")
     run_execute("DELETE FROM departments WHERE id = :id", {"id": department_id})
 
+def create_department(name: str):
+    run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
+
+
+def delete_department(department_id: int):
+    linked = fetch_scalar("SELECT COUNT(*) FROM user_departments WHERE department_id = :id", {"id": department_id}) or 0
+    if int(linked) > 0:
+        raise ValueError("Não é possível excluir setor vinculado a usuários.")
+    run_execute("DELETE FROM departments WHERE id = :id", {"id": department_id})
+
 def toggle_user_status(user_id: int, is_active: bool):
     run_execute(
         "UPDATE users SET is_active = :is_active, updated_at = NOW() WHERE id = :user_id",
@@ -645,8 +655,8 @@ def safe_dataframe(df: pd.DataFrame, **kwargs):
             or isinstance(exc, ImportError)
             or isinstance(getattr(exc, "__cause__", None), ImportError)
         ):
-            st.warning("Ambiente sem compatibilidade com pyarrow/numpy para grid avançada. Exibindo tabela simplificada.")
-            st.table(df)
+            st.warning("Ambiente sem compatibilidade com pyarrow/numpy para grid avançada. Exibindo tabela HTML simplificada.")
+            st.markdown(df.to_html(index=False), unsafe_allow_html=True)
         else:
             raise
 
