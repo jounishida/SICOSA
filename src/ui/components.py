@@ -12,19 +12,53 @@ def show_db_error(error: Exception):
     st.code(str(error))
 
 
+def _is_grid_dependency_error(error: Exception) -> bool:
+    message = str(error).lower()
+    cause = getattr(error, "__cause__", None)
+    context = getattr(error, "__context__", None)
+    return (
+        "pyarrow" in message
+        or "numpy.core.multiarray" in message
+        or "multiarray failed to import" in message
+        or isinstance(error, ImportError)
+        or isinstance(cause, ImportError)
+        or isinstance(context, ImportError)
+    )
+
+
+def _render_html_table(df: pd.DataFrame):
+    st.markdown(
+        """
+        <style>
+        .fallback-table-wrapper {overflow-x: auto; width: 100%;}
+        .fallback-table-wrapper table {border-collapse: collapse; width: 100%; font-size: 0.9rem;}
+        .fallback-table-wrapper th, .fallback-table-wrapper td {
+            border: 1px solid #334155;
+            padding: 0.45rem 0.55rem;
+            text-align: left;
+            vertical-align: top;
+        }
+        .fallback-table-wrapper th {background: #0f172a; color: #f8fafc;}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"<div class='fallback-table-wrapper'>{df.to_html(index=False)}</div>",
+        unsafe_allow_html=True,
+    )
+
+
 def safe_dataframe(df: pd.DataFrame, **kwargs):
     try:
         st.dataframe(df, **kwargs)
     except Exception as exc:
-        message = str(exc).lower()
-        if (
-            "pyarrow" in message
-            or "numpy.core.multiarray" in message
-            or isinstance(exc, ImportError)
-            or isinstance(getattr(exc, "__cause__", None), ImportError)
-        ):
-            st.warning("Ambiente sem compatibilidade com pyarrow/numpy para grid avançada. Exibindo tabela HTML simplificada.")
-            st.markdown(df.to_html(index=False), unsafe_allow_html=True)
+        if _is_grid_dependency_error(exc):
+            st.warning(
+                "Ambiente sem compatibilidade com pyarrow/numpy para a grade avançada. "
+                "Exibindo tabela HTML simplificada."
+            )
+            _render_html_table(df)
         else:
             raise
 
