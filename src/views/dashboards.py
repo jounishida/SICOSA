@@ -7,7 +7,7 @@ from src.controllers.report_controller import (manager_department_summary, manag
     manager_status_summary, mean_resolution_time_hours, metrics_for_user)
 from src.controllers.user_controller import list_users
 from src.db import fetch_scalar
-from src.ui.components import metric_cards, open_detail_button, render_hero, render_occurrences_table, safe_dataframe
+from src.ui.components import metric_cards, open_detail_button, render_hero, render_occurrences_table, safe_chart, safe_dataframe
 
 
 def render_solicitante_dashboard(user: dict):
@@ -58,13 +58,11 @@ def render_manager_dashboard(user: dict):
     with c1:
         st.markdown("### Ocorrências por status")
         status_df = manager_status_summary().set_index("status")
-        if not status_df.empty:
-            st.bar_chart(status_df)
+        safe_chart(st.bar_chart, status_df, "Sem ocorrências por status para exibir.")
     with c2:
         st.markdown("### Ocorrências por prioridade")
         prio_df = manager_priority_summary().set_index("priority")
-        if not prio_df.empty:
-            st.bar_chart(prio_df)
+        safe_chart(st.bar_chart, prio_df, "Sem ocorrências por prioridade para exibir.")
 
     st.markdown("### Leituras rápidas do painel")
     st.markdown(f"- Tempo médio de resolução: **{mean_resolution_time_hours():.2f} horas**")

@@ -59,6 +59,19 @@ def safe_dataframe(df: pd.DataFrame, **kwargs):
             raise
 
 
+def safe_chart(chart_func, data, empty_message: str = "Sem dados para exibir."):
+    if data is None or getattr(data, "empty", False):
+        st.info(empty_message)
+        return
+    try:
+        chart_func(data)
+    except Exception as exc:
+        if _is_grid_dependency_error(exc):
+            _render_html_table(data.reset_index() if hasattr(data, "reset_index") else data)
+        else:
+            raise
+
+
 def render_hero(title: str, subtitle: str):
     st.markdown(
         f"""
