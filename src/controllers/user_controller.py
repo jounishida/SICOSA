@@ -66,6 +66,13 @@ def list_user_profiles(user_id: int) -> pd.DataFrame:
     """, {"user_id": user_id})
 
 
+def list_user_profile_names(user_id: int) -> list[str]:
+    profiles = list_user_profiles(user_id)
+    if profiles.empty:
+        return []
+    return profiles["name"].tolist()
+
+
 def assign_user_profile(user_id: int, profile_id: int):
     run_execute("INSERT IGNORE INTO user_profiles (user_id, profile_id) VALUES (:user_id, :profile_id)", {"user_id": user_id, "profile_id": profile_id})
 

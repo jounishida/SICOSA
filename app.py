@@ -51,6 +51,7 @@ def configure_app():
         }
         .small-muted {color: #64748b; font-size: .92rem;}
         .section-title {margin-top: .6rem; margin-bottom: .4rem;}
+        [data-testid="stSidebarNav"] {display: none;}
         </style>
         """,
         unsafe_allow_html=True,
