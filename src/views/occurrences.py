@@ -24,7 +24,8 @@ def render_new_occurrence(user: dict):
             if departments.empty:
                 st.warning("Nenhum setor cadastrado. Solicite ao administrador que cadastre setores antes de abrir chamados.")
         with col2:
-            priority = st.selectbox("Prioridade", PRIORITY_OPTIONS, index=1)
+            priority = st.selectbox("Criticidade", PRIORITY_OPTIONS, index=1)
+            st.caption("Após a abertura, somente o supervisor poderá alterar a criticidade.")
             st.text_input("Data", value=datetime.now().strftime("%d/%m/%Y"), disabled=True)
 
         description = st.text_area(
@@ -216,29 +217,45 @@ def render_occurrence_detail(user: dict):
         attendant_map.update({row["full_name"]: int(row["id"]) for _, row in attendants.iterrows()})
 
     with st.form("detail_update_form"):
-        c1, c2 = st.columns(2)
-        note = c1.text_area("Comentário ou atualização", height=120)
-        selected_status = c2.selectbox(
-            "Novo status",
-            ["Sem alteração"] + STATUS_OPTIONS,
-            index=0 if role == "solicitante" else 1,
-        )
-        if role == "supervisor":
-            selected_assignee = st.selectbox("Responsável", list(attendant_map.keys()))
-        selected_priority = st.selectbox("Nova criticidade", ["Sem alteração"] + PRIORITY_OPTIONS, index=0)
+        selected_status = "Sem alteração"
+        selected_priority = "Sem alteração"
+        if role == "solicitante":
+            c1, c2 = st.columns(2)
+            note = c1.text_area("Comentário ou atualização", height=120)
+            solicitante_status_options = ["Sem alteração"] if row["status"] == "Encerrada" else ["Sem alteração", "Encerrar"]
+            selected_status = c2.selectbox("Novo status", solicitante_status_options, index=0)
+            st.caption("Solicitantes podem comentar, anexar evidências ou encerrar com comentário; não alteram criticidade nem outros status.")
+        else:
+            c1, c2 = st.columns(2)
+            note = c1.text_area("Comentário ou atualização", height=120)
+            selected_status = c2.selectbox("Novo status", ["Sem alteração"] + STATUS_OPTIONS, index=1)
+            if role == "supervisor":
+                selected_assignee = st.selectbox("Responsável", list(attendant_map.keys()))
+                selected_priority = st.selectbox("Nova criticidade", ["Sem alteração"] + PRIORITY_OPTIONS, index=0)
         new_files = st.file_uploader("Novos anexos", accept_multiple_files=True, key="detail_files")
         submitted = st.form_submit_button("Salvar atualização")
         if submitted:
-            if not note.strip() and not new_files and selected_status == "Sem alteração" and selected_assignee == "Manter responsável atual" and selected_priority == "Sem alteração":
+            if role == "solicitante" and selected_status == "Encerrar":
+                if not note.strip():
+                    st.error("Informe um comentário para encerrar a ocorrência.")
+                else:
+                    try:
+                        if new_files:
+                            valid, msg = validate_files(new_files)
+                            if not valid:
+                                st.error(msg)
+                                return
+                            add_attachment(int(occurrence_id), new_files, int(user["id"]))
+                        close_occurrence(int(occurrence_id), int(user["id"]), note.strip())
+                        st.success("Ocorrência encerrada com sucesso.")
+                        st.rerun()
+                    except SQLAlchemyError as e:
+                        show_db_error(e)
+            elif not note.strip() and not new_files and selected_status == "Sem alteração" and selected_assignee == "Manter responsável atual" and selected_priority == "Sem alteração":
                 st.error("Informe ao menos um comentário, uma mudança de status, um responsável ou um anexo.")
             else:
-                if role == "solicitante":
-                    # Solicitante pode comentar e anexar, mas não alterar status, atribuição ou criticidade.
-                    selected_status = "Sem alteração"
-                    selected_assignee = "Manter responsável atual"
-                    selected_priority = "Sem alteração"
-                elif role != "supervisor":
-                    # Atendente e gestor não delegam responsável por este formulário.
+                if role != "supervisor":
+                    # Somente supervisor delega responsável por este formulário.
                     selected_assignee = "Manter responsável atual"
                 try:
                     add_update(
@@ -260,7 +277,8 @@ def render_occurrence_detail(user: dict):
                 except SQLAlchemyError as e:
                     show_db_error(e)
 
-    if role in {"atendente", "administrador"}:
+    can_close = role in {"atendente", "administrador"} and row["status"] != "Encerrada"
+    if can_close:
         st.markdown("### Encerramento")
         with st.form("close_occurrence_form"):
             closure_notes = st.text_area("Solução adotada", height=100)

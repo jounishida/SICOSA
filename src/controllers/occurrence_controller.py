@@ -123,12 +123,9 @@ def get_occurrences(role: str, user_id: int, filters: Optional[Dict] = None) -> 
         params["user_id"] = user_id
     elif role == "atendente":
         query += """
-            AND EXISTS (
-                SELECT 1
-                FROM user_departments ud
-                INNER JOIN departments d ON d.id = ud.department_id
-                WHERE ud.user_id = :user_id
-                  AND d.name = o.department
+            AND (
+                o.assigned_to = :user_id
+                OR o.assigned_to IS NULL
             )
         """
         params["user_id"] = user_id
