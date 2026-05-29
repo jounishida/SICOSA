@@ -201,14 +201,17 @@ def render_occurrence_detail(user: dict):
             )
 
     st.markdown("### Registrar nova interação")
-    if user["role"] == "atendente" and (pd.isna(row["assigned_to"]) or row["assigned_to"] != int(user["id"])):
-        if st.button("Assumir chamado"):
-            add_update(int(occurrence_id), int(user["id"]), "Chamado assumido pelo atendente.", None, int(user["id"]), None)
-            st.success("Chamado assumido com sucesso.")
-            st.rerun()
-    attendants = get_active_attendants()
+    can_self_assign = user["role"] == "atendente" and pd.isna(row["assigned_to"])
+    if can_self_assign and st.button("Assumir chamado"):
+        add_update(int(occurrence_id), int(user["id"]), "Chamado assumido pelo atendente.", None, int(user["id"]), None)
+        st.success("Chamado assumido com sucesso.")
+        st.rerun()
+
+    selected_assignee = "Manter responsável atual"
     attendant_map = {"Manter responsável atual": None}
-    attendant_map.update({row["full_name"]: int(row["id"]) for _, row in attendants.iterrows()})
+    if role == "supervisor":
+        attendants = get_active_attendants()
+        attendant_map.update({row["full_name"]: int(row["id"]) for _, row in attendants.iterrows()})
 
     with st.form("detail_update_form"):
         c1, c2 = st.columns(2)
@@ -218,7 +221,8 @@ def render_occurrence_detail(user: dict):
             ["Sem alteração"] + STATUS_OPTIONS,
             index=0 if role == "solicitante" else 1,
         )
-        selected_assignee = st.selectbox("Responsável", list(attendant_map.keys()))
+        if role == "supervisor":
+            selected_assignee = st.selectbox("Responsável", list(attendant_map.keys()))
         selected_priority = st.selectbox("Nova criticidade", ["Sem alteração"] + PRIORITY_OPTIONS, index=0)
         new_files = st.file_uploader("Novos anexos", accept_multiple_files=True, key="detail_files")
         submitted = st.form_submit_button("Salvar atualização")
@@ -227,10 +231,13 @@ def render_occurrence_detail(user: dict):
                 st.error("Informe ao menos um comentário, uma mudança de status, um responsável ou um anexo.")
             else:
                 if role == "solicitante":
-                    # Solicitante pode comentar e anexar, mas não alterar status/atribuição.
+                    # Solicitante pode comentar e anexar, mas não alterar status, atribuição ou criticidade.
                     selected_status = "Sem alteração"
                     selected_assignee = "Manter responsável atual"
                     selected_priority = "Sem alteração"
+                elif role != "supervisor":
+                    # Atendente e gestor não delegam responsável por este formulário.
+                    selected_assignee = "Manter responsável atual"
                 try:
                     add_update(
                         int(occurrence_id),
