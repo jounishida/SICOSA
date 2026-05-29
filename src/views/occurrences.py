@@ -7,7 +7,7 @@ from src.config import PRIORITY_OPTIONS, STATUS_OPTIONS
 from src.controllers.occurrence_controller import (add_attachment, add_update, close_occurrence,
     create_occurrence, get_active_attendants, get_occurrence_attachments, get_occurrence_by_id,
     get_occurrence_updates, get_occurrences)
-from src.controllers.user_controller import list_user_departments
+from src.controllers.user_controller import list_departments
 from src.security import validate_files
 from src.ui.components import open_detail_button, render_hero, render_occurrences_table, show_db_error
 
@@ -18,9 +18,11 @@ def render_new_occurrence(user: dict):
         col1, col2 = st.columns(2)
         with col1:
             title = st.text_input("Título resumido")
-            user_depts = list_user_departments(int(user["id"]))
-            dept_options = [""] + user_depts["name"].tolist()
+            departments = list_departments()
+            dept_options = [""] + departments["name"].tolist()
             department = st.selectbox("Setor", dept_options, index=1 if len(dept_options) > 1 else 0)
+            if departments.empty:
+                st.warning("Nenhum setor cadastrado. Solicite ao administrador que cadastre setores antes de abrir chamados.")
         with col2:
             priority = st.selectbox("Prioridade", PRIORITY_OPTIONS, index=1)
             st.text_input("Data", value=datetime.now().strftime("%d/%m/%Y"), disabled=True)
