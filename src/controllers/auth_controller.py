@@ -1,3 +1,5 @@
+"""Controlador de autenticação e encerramento de sessão."""
+
 from typing import Optional
 
 import streamlit as st
@@ -9,6 +11,7 @@ from src.ui.components import show_db_error
 
 
 def authenticate_user(email: str, password: str, role: str) -> Optional[dict]:
+    """Autentica usuário por e-mail, senha e perfil solicitado."""
     query = """
         SELECT DISTINCT u.id, u.full_name, u.email, p.name AS role, u.is_active
         FROM users u
@@ -34,6 +37,7 @@ def authenticate_user(email: str, password: str, role: str) -> Optional[dict]:
 
 
 def logout():
+    """Limpa os dados de sessão e retorna para a tela de login."""
     st.session_state["authenticated"] = False
     st.session_state["user"] = None
     st.session_state["page"] = "Dashboard"

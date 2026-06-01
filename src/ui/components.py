@@ -1,3 +1,5 @@
+"""Componentes reutilizáveis de interface e fallbacks de renderização."""
+
 from typing import Dict
 
 import pandas as pd
@@ -6,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 
 def show_db_error(error: Exception):
+    """Exibe erro de banco de forma padronizada na interface."""
     st.error(
         "Não foi possível acessar o banco de dados. Verifique a variável DATABASE_URL e rode os scripts SQL antes de iniciar o app."
     )
@@ -13,6 +16,7 @@ def show_db_error(error: Exception):
 
 
 def _is_grid_dependency_error(error: Exception) -> bool:
+    """Identifica falhas conhecidas de pyarrow/numpy na renderização."""
     message = str(error).lower()
     cause = getattr(error, "__cause__", None)
     context = getattr(error, "__context__", None)
@@ -27,6 +31,7 @@ def _is_grid_dependency_error(error: Exception) -> bool:
 
 
 def _render_html_table(df: pd.DataFrame):
+    """Renderiza tabela HTML simplificada como fallback seguro."""
     st.markdown(
         """
         <style>
@@ -50,6 +55,7 @@ def _render_html_table(df: pd.DataFrame):
 
 
 def safe_dataframe(df: pd.DataFrame, **kwargs):
+    """Tenta renderizar DataFrame avançado e cai para HTML quando necessário."""
     try:
         st.dataframe(df, **kwargs)
     except Exception as exc:
@@ -60,6 +66,7 @@ def safe_dataframe(df: pd.DataFrame, **kwargs):
 
 
 def safe_chart(chart_func, data, empty_message: str = "Sem dados para exibir."):
+    """Renderiza gráficos com tratamento para dados vazios ou dependências quebradas."""
     if data is None or getattr(data, "empty", False):
         st.info(empty_message)
         return
@@ -73,6 +80,7 @@ def safe_chart(chart_func, data, empty_message: str = "Sem dados para exibir."):
 
 
 def render_hero(title: str, subtitle: str):
+    """Renderiza cabeçalho visual padrão da página."""
     st.markdown(
         f"""
         <div class='hero'>
@@ -85,6 +93,7 @@ def render_hero(title: str, subtitle: str):
 
 
 def metric_cards(metrics: Dict[str, int]):
+    """Renderiza cartões de métricas na largura disponível."""
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Total", metrics.get("total", 0))
     c2.metric("Abertas", metrics.get("abertas", 0))
@@ -94,6 +103,7 @@ def metric_cards(metrics: Dict[str, int]):
 
 
 def open_detail_button(df: pd.DataFrame, key_prefix: str):
+    """Permite selecionar ocorrência da tabela e abrir detalhe."""
     if df.empty:
         st.info("Nenhuma ocorrência encontrada para os filtros selecionados.")
         return
@@ -107,6 +117,7 @@ def open_detail_button(df: pd.DataFrame, key_prefix: str):
 
 
 def render_occurrences_table(df: pd.DataFrame, height: int = 350):
+    """Renderiza tabela padronizada de ocorrências."""
     if df.empty:
         st.info("Nenhuma ocorrência encontrada.")
         return

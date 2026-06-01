@@ -1,3 +1,5 @@
+"""Controlador de usuários, perfis e setores."""
+
 import pandas as pd
 from sqlalchemy import text
 
@@ -6,6 +8,7 @@ from src.security import hash_password
 
 
 def list_users() -> pd.DataFrame:
+    """Lista usuários com perfis e setores agregados para administração."""
     return run_select(
         """
         SELECT
@@ -29,6 +32,7 @@ def list_users() -> pd.DataFrame:
 
 
 def create_user(payload: dict):
+    """Cria usuário ativo e associa o perfil inicial selecionado."""
     engine = get_engine()
     with engine.begin() as conn:
         result = conn.execute(
@@ -53,10 +57,12 @@ def create_user(payload: dict):
 
 
 def list_profiles() -> pd.DataFrame:
+    """Lista perfis disponíveis para associação a usuários."""
     return run_select("SELECT id, name, label FROM profiles ORDER BY id")
 
 
 def list_user_profiles(user_id: int) -> pd.DataFrame:
+    """Lista perfis associados a um usuário específico."""
     return run_select("""
         SELECT p.id, p.name, p.label
         FROM user_profiles up
@@ -67,6 +73,7 @@ def list_user_profiles(user_id: int) -> pd.DataFrame:
 
 
 def list_user_profile_names(user_id: int) -> list[str]:
+    """Retorna apenas os nomes técnicos dos perfis do usuário."""
     profiles = list_user_profiles(user_id)
     if profiles.empty:
         return []
@@ -74,10 +81,12 @@ def list_user_profile_names(user_id: int) -> list[str]:
 
 
 def assign_user_profile(user_id: int, profile_id: int):
+    """Associa um perfil a um usuário sem duplicar vínculo existente."""
     run_execute("INSERT IGNORE INTO user_profiles (user_id, profile_id) VALUES (:user_id, :profile_id)", {"user_id": user_id, "profile_id": profile_id})
 
 
 def remove_user_profile(user_id: int, profile_id: int):
+    """Remove perfil mantendo ao menos um perfil ativo por usuário."""
     qty = fetch_scalar("SELECT COUNT(*) FROM user_profiles WHERE user_id = :user_id", {"user_id": user_id}) or 0
     if int(qty) <= 1:
         raise ValueError("O usuário deve possuir ao menos um perfil.")
@@ -85,10 +94,12 @@ def remove_user_profile(user_id: int, profile_id: int):
 
 
 def list_departments() -> pd.DataFrame:
+    """Lista setores cadastrados no sistema."""
     return run_select("SELECT id, name FROM departments ORDER BY name")
 
 
 def list_user_departments(user_id: int) -> pd.DataFrame:
+    """Lista setores vinculados a um usuário específico."""
     return run_select("""
         SELECT d.id, d.name
         FROM user_departments ud
@@ -99,18 +110,22 @@ def list_user_departments(user_id: int) -> pd.DataFrame:
 
 
 def assign_user_department(user_id: int, department_id: int):
+    """Associa usuário a setor sem duplicar vínculo existente."""
     run_execute("INSERT IGNORE INTO user_departments (user_id, department_id) VALUES (:user_id, :department_id)", {"user_id": user_id, "department_id": department_id})
 
 
 def remove_user_department(user_id: int, department_id: int):
+    """Remove vínculo entre usuário e setor."""
     run_execute("DELETE FROM user_departments WHERE user_id = :user_id AND department_id = :department_id", {"user_id": user_id, "department_id": department_id})
 
 
 def create_department(name: str):
+    """Cria novo setor administrativo."""
     run_execute("INSERT INTO departments (name) VALUES (:name)", {"name": name.strip()})
 
 
 def delete_department(department_id: int):
+    """Remove setor somente quando não há usuários vinculados."""
     linked = fetch_scalar("SELECT COUNT(*) FROM user_departments WHERE department_id = :id", {"id": department_id}) or 0
     if int(linked) > 0:
         raise ValueError("Não é possível excluir setor vinculado a usuários.")
@@ -118,6 +133,7 @@ def delete_department(department_id: int):
 
 
 def toggle_user_status(user_id: int, is_active: bool):
+    """Alterna ativação/inativação do usuário."""
     run_execute(
         "UPDATE users SET is_active = :is_active, updated_at = NOW() WHERE id = :user_id",
         {"is_active": 0 if is_active else 1, "user_id": user_id},

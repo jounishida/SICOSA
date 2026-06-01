@@ -1,3 +1,5 @@
+"""Inicializa o Streamlit, configura estado global e roteia cada perfil para sua view."""
+
 import streamlit as st
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -23,6 +25,7 @@ from src.ui.components import show_db_error
 
 
 def configure_app():
+    """Configura a página Streamlit e injeta CSS global usado nas telas."""
     st.set_page_config(
         page_title="Sistema de Cadastro de Ocorrências",
         page_icon="🛠️",
@@ -59,6 +62,7 @@ def configure_app():
 
 
 def init_state():
+    """Inicializa chaves obrigatórias da sessão quando ainda não existem."""
     st.session_state.setdefault("authenticated", False)
     st.session_state.setdefault("user", None)
     st.session_state.setdefault("page", "Dashboard")
@@ -66,6 +70,7 @@ def init_state():
 
 
 def render_current_page(user: dict):
+    """Seleciona e executa o handler da página conforme perfil e menu ativo."""
     render_sidebar(user)
     page = st.session_state.get("page", "Dashboard")
     role = user["role"]
@@ -108,6 +113,7 @@ def render_current_page(user: dict):
 
 
 def main():
+    """Ponto de entrada da aplicação Streamlit."""
     configure_app()
     init_state()
 

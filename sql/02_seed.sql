@@ -1,12 +1,9 @@
 USE suporte_ocorrencias;
 
--- Senha padrão para todos os usuários abaixo: Senha@123
--- Hash SHA-256: a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd
-
 INSERT INTO users (id, full_name, email, password_hash, is_active) VALUES
 (1, 'Jonathan Ken Nishida', 'jonathan.nishida', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 1),
-(2, 'Marcos Silva', 'marcos.silva', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 1),
-(3, 'Jéssica Costa', 'jessica.costa', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 1),
+(2, 'Jean Lucas Britez Vergara', 'jean.vergara', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 1),
+(3, 'Gianluca Bruzão', 'gianluca.bruzao', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 1),
 (4, 'Carlos Menezes', 'carlos.menezes', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 1),
 (5, 'Administrador do Sistema', 'admin', 'a2ca37fe6fdc490b8f7ce841e1701a169d2b1697c6b5b5c63f94abb8f9b6d6dd', 1);
 

@@ -1,3 +1,5 @@
+"""View de relatórios gerenciais."""
+
 import streamlit as st
 
 from src.controllers.occurrence_controller import get_occurrences
@@ -6,6 +8,7 @@ from src.ui.components import open_detail_button, render_hero, render_occurrence
 
 
 def render_reports(user: dict):
+    """Renderiza relatórios agregados de status, setor e criticidade."""
     render_hero("Painel gerencial consolidado", "Resumo visual do volume de ocorrências, recorrências e tempos médios de atendimento.")
     c1, c2 = st.columns(2)
     with c1:

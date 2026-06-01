@@ -1,3 +1,5 @@
+"""View de autenticação do sistema."""
+
 import streamlit as st
 
 from src.config import APP_NAME, ROLE_LABELS
@@ -6,6 +8,7 @@ from src.ui.components import render_hero
 
 
 def render_login():
+    """Renderiza tela de login e autentica usuário no perfil escolhido."""
     render_hero(
         APP_NAME,
         "Acesso inicial para solicitantes, atendentes, gestores e administradores.",
@@ -25,7 +28,6 @@ def render_login():
             - Administrador
             """
         )
-        st.info("Usuários de exemplo no banco de dados usam a senha: **Senha@123**")
     with col2:
         with st.form("login_form"):
             st.subheader("Acessar plataforma")

@@ -96,16 +96,6 @@ export DATABASE_URL="mysql+pymysql://root:1234@localhost:3306/suporte_ocorrencia
 streamlit run app.py
 ```
 
-## Usuários de exemplo
-
-Todos usam a senha `Senha@123`.
-
-- `jonathan.nishida@instituicao.br` — solicitante
-- `marcos.silva@instituicao.br` — atendente
-- `jessica.costa@instituicao.br` — atendente
-- `carlos.menezes@instituicao.br` — gestor
-- `admin@instituicao.br` — administrador
-
 ## O que já está implementado
 
 - Login por perfil

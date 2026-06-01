@@ -1,3 +1,5 @@
+"""Controlador de consultas agregadas para dashboards e relatórios."""
+
 from typing import Dict
 
 import pandas as pd
@@ -6,6 +8,7 @@ from src.db import fetch_scalar, run_select
 
 
 def metrics_for_user(role: str, user_id: int) -> Dict[str, int]:
+    """Calcula métricas resumidas de ocorrências conforme perfil."""
     params = {}
     where = ""
     if role == "solicitante":
@@ -28,6 +31,7 @@ def metrics_for_user(role: str, user_id: int) -> Dict[str, int]:
 
 
 def manager_status_summary() -> pd.DataFrame:
+    """Agrupa ocorrências por status para dashboard gerencial."""
     return run_select(
         """
         SELECT status, COUNT(*) AS quantidade
@@ -39,6 +43,7 @@ def manager_status_summary() -> pd.DataFrame:
 
 
 def manager_department_summary() -> pd.DataFrame:
+    """Agrupa ocorrências por setor para dashboard gerencial."""
     return run_select(
         """
         SELECT department, COUNT(*) AS quantidade
@@ -51,6 +56,7 @@ def manager_department_summary() -> pd.DataFrame:
 
 
 def manager_priority_summary() -> pd.DataFrame:
+    """Agrupa ocorrências por criticidade para dashboard gerencial."""
     return run_select(
         """
         SELECT priority, COUNT(*) AS quantidade
@@ -62,6 +68,7 @@ def manager_priority_summary() -> pd.DataFrame:
 
 
 def mean_resolution_time_hours() -> float:
+    """Calcula tempo médio de resolução em horas."""
     value = fetch_scalar(
         """
         SELECT ROUND(AVG(TIMESTAMPDIFF(MINUTE, created_at, closed_at)) / 60, 2)

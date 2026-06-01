@@ -1,3 +1,5 @@
+"""Views de abertura, consulta, fila, triagem e detalhe de ocorrências."""
+
 import pandas as pd
 import streamlit as st
 from sqlalchemy.exc import SQLAlchemyError
@@ -13,6 +15,7 @@ from src.ui.components import open_detail_button, render_hero, render_occurrence
 
 
 def render_new_occurrence(user: dict):
+    """Renderiza formulário de abertura de ocorrência pelo solicitante."""
     render_hero("Abertura de ocorrência", "Registro da demanda com dados mínimos padronizados e anexos de apoio.")
     with st.form("new_occurrence_form", clear_on_submit=False):
         col1, col2 = st.columns(2)
@@ -69,6 +72,7 @@ def render_new_occurrence(user: dict):
 
 
 def render_my_occurrences(user: dict):
+    """Renderiza consulta de ocorrências do usuário com filtros."""
     render_hero("Consulta de ocorrências", "Pesquise, filtre e acesse o detalhe das ocorrências registradas.")
     c1, c2, c3 = st.columns([1, 1, 2])
     key_scope = f"{user['role']}_{user['id']}"
@@ -86,6 +90,7 @@ def render_my_occurrences(user: dict):
 
 
 def render_queue(user: dict):
+    """Renderiza fila operacional do atendente."""
     render_hero("Fila de atendimento", "Triagem, atualização e acompanhamento operacional das ocorrências.")
     c1, c2, c3 = st.columns([1, 1, 2])
     status = c1.selectbox("Status", [""] + STATUS_OPTIONS, format_func=lambda x: x or "Todos", key="queue_status")
@@ -102,6 +107,7 @@ def render_queue(user: dict):
 
 
 def render_supervisor_triage(user: dict):
+    """Renderiza lista de triagem do supervisor."""
     render_hero("Triagem de tarefas", "Ajuste criticidade e delegue chamados para atendentes.")
     df = get_occurrences("gestor", int(user["id"]))
     render_occurrences_table(df)
@@ -109,6 +115,7 @@ def render_supervisor_triage(user: dict):
 
 
 def render_occurrence_detail(user: dict):
+    """Renderiza detalhe, histórico, anexos e ações permitidas da ocorrência."""
     role = user["role"]
     scope_role = "gestor" if role == "supervisor" else role
 

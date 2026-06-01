@@ -1,3 +1,5 @@
+"""View de layout lateral, troca de perfil e navegação por perfil."""
+
 import streamlit as st
 
 from src.config import APP_NAME, ROLE_LABELS
@@ -15,6 +17,7 @@ PAGES_BY_ROLE = {
 
 
 def _change_profile(user: dict, role: str):
+    """Troca perfil ativo do usuário e reinicia navegação."""
     st.session_state["user"] = {**user, "role": role}
     st.session_state["page"] = "Dashboard"
     st.session_state["selected_occurrence_id"] = None
@@ -22,6 +25,7 @@ def _change_profile(user: dict, role: str):
 
 
 def render_profile_switcher(user: dict):
+    """Renderiza seletor de perfis disponíveis na sidebar."""
     role = user["role"]
     available_roles = list_user_profile_names(int(user["id"])) or [role]
     st.sidebar.caption("Perfil ativo")
@@ -36,6 +40,7 @@ def render_profile_switcher(user: dict):
 
 
 def render_sidebar(user: dict):
+    """Renderiza identidade do usuário, menu e botão sair."""
     role = user["role"]
     st.sidebar.title(APP_NAME)
     st.sidebar.write(f"**{user['full_name']}**")

@@ -1,3 +1,5 @@
+"""Views administrativas para usuários, setores e logs."""
+
 import streamlit as st
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -11,6 +13,7 @@ from src.ui.components import render_hero, safe_dataframe, show_db_error
 
 
 def render_admin_users():
+    """Renderiza gestão de usuários e permissões de perfis."""
     render_hero("Gestão de usuários", "Criação de perfis, ativação e inativação de acessos do sistema.")
     st.markdown("### Novo usuário")
     with st.form("new_user_form"):
@@ -19,7 +22,7 @@ def render_admin_users():
         email = c2.text_input("E-mail")
         c3, c4 = st.columns(2)
         role = c3.selectbox("Perfil", list(ROLE_LABELS.keys()), format_func=lambda x: ROLE_LABELS[x])
-        password = c4.text_input("Senha inicial", type="password", value="Senha@123")
+        password = c4.text_input("Senha inicial", type="password", placeholder="Defina uma senha forte")
         submitted = st.form_submit_button("Criar usuário")
         if submitted:
             if not full_name.strip() or not email.strip() or not password.strip():
@@ -92,6 +95,7 @@ def render_admin_users():
 
 
 def render_admin_departments():
+    """Renderiza gestão de setores e vínculos de usuários."""
     render_hero("Gestão de setores", "Criação, exclusão e vínculo de setores aos usuários.")
     with st.form("create_department_form"):
         name = st.text_input("Novo setor")
@@ -126,6 +130,7 @@ def render_admin_departments():
 
 
 def render_admin_logs():
+    """Renderiza auditoria das atualizações de ocorrências."""
     render_hero("Logs e trilha de auditoria", "Acompanhamento das alterações realizadas nas ocorrências do sistema.")
     logs = run_select(
         """

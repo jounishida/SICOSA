@@ -1,3 +1,5 @@
+"""Views de dashboards por perfil."""
+
 import pandas as pd
 import streamlit as st
 
@@ -11,6 +13,7 @@ from src.ui.components import metric_cards, open_detail_button, render_hero, ren
 
 
 def render_solicitante_dashboard(user: dict):
+    """Renderiza painel resumido das ocorrências do solicitante."""
     render_hero("Painel do solicitante", "Acompanhe suas ocorrências, o histórico e o andamento das demandas.")
     metric_cards(metrics_for_user(user["role"], int(user["id"])))
     df = get_occurrences(user["role"], int(user["id"]))
@@ -21,6 +24,7 @@ def render_solicitante_dashboard(user: dict):
 
 
 def render_atendente_dashboard(user: dict):
+    """Renderiza painel operacional do atendente."""
     render_hero("Painel do atendente", "Visão operacional das ocorrências para triagem, atualização e conclusão dos atendimentos.")
     metrics = metrics_for_user("gestor", int(user["id"]))
     metric_cards(metrics)
@@ -41,6 +45,7 @@ def render_atendente_dashboard(user: dict):
 
 
 def render_supervisor_dashboard(user: dict):
+    """Renderiza painel de triagem do supervisor."""
     render_hero("Painel do supervisor", "Triagem das ocorrências: priorização e delegação para atendentes.")
     df = get_occurrences("gestor", int(user["id"]))
     metric_cards(metrics_for_user("gestor", int(user["id"])))
@@ -50,6 +55,7 @@ def render_supervisor_dashboard(user: dict):
 
 
 def render_manager_dashboard(user: dict):
+    """Renderiza dashboard gerencial com indicadores e gráficos."""
     render_hero("Relatórios e indicadores", "Painel gerencial para análise de volume, tempos de resposta e recorrências.")
     metrics = metrics_for_user("gestor", int(user["id"]))
     metric_cards(metrics)
@@ -76,6 +82,7 @@ def render_manager_dashboard(user: dict):
 
 
 def render_admin_dashboard(user: dict):
+    """Renderiza resumo administrativo do sistema."""
     render_hero("Administração do sistema", "Gestão de perfis de acesso, usuários, trilha de auditoria e sustentação do sistema.")
     total_users = fetch_scalar("SELECT COUNT(*) FROM users") or 0
     active_users = fetch_scalar("SELECT COUNT(*) FROM users WHERE is_active = 1") or 0
