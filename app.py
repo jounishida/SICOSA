@@ -67,6 +67,7 @@ def init_state():
     st.session_state.setdefault("user", None)
     st.session_state.setdefault("page", "Dashboard")
     st.session_state.setdefault("selected_occurrence_id", None)
+    st.session_state.setdefault("pending_login_user", None)
 
 
 def render_current_page(user: dict):
