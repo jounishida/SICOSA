@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-"""conexão com o banco, deve ser colocado em um arquivo separado furturamente"""
+
 DB_URL = os.getenv(
     "DATABASE_URL",
     "mysql+pymysql://root:1234@localhost:3306/suporte_ocorrencias?charset=utf8mb4",

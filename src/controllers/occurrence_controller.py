@@ -7,25 +7,27 @@ import pandas as pd
 from sqlalchemy import text
 
 from src.db import fetch_scalar, get_engine, run_select
+from src.models import AtualizacaoOcorrencia, Ocorrencia
 
 
 # Regras e persistência dos chamados/ocorrências.
-def next_protocol() -> str:
+def _next_protocol() -> str:
     """Calcula o próximo protocolo anual a partir do maior ID atual."""
     next_id = fetch_scalar("SELECT COALESCE(MAX(id), 0) + 1 FROM occurrences")
     return f"{datetime.now().year}-{int(next_id):04d}"
 
 
-def default_due_at(priority: str) -> datetime:
+def _default_due_at(priority: str) -> datetime:
     """Calcula vencimento/SLA inicial com base na criticidade."""
     hours_by_priority = {"Baixa": 48, "Média": 24, "Alta": 8, "Crítica": 4}
     return datetime.now() + timedelta(hours=hours_by_priority.get(priority, 24))
 
 
-def create_occurrence(payload: dict, attachments: List[dict]):
+def _create_occurrence(payload: dict, attachments: List[dict]):
     """Cria ocorrência, registra histórico inicial e salva anexos."""
-    protocol = next_protocol()
-    due_at = default_due_at(payload["priority"])
+    protocol = _next_protocol()
+    due_at = _default_due_at(payload["priority"])
+    occurrence = Ocorrencia.from_payload(payload, protocol, due_at)
     engine = get_engine()
     with engine.begin() as conn:
         result = conn.execute(
@@ -41,15 +43,15 @@ def create_occurrence(payload: dict, attachments: List[dict]):
                 """
             ),
             {
-                "protocol": protocol,
-                "requester_id": payload["requester_id"],
-                "title": payload["title"],
-                "description": payload["description"],
-                "department": payload["department"],
-                "category": payload.get("category"),
-                "priority": payload["priority"],
-                "assigned_to": payload.get("assigned_to"),
-                "due_at": due_at,
+                "protocol": occurrence.protocol,
+                "requester_id": occurrence.requester_id,
+                "title": occurrence.title,
+                "description": occurrence.description,
+                "department": occurrence.department,
+                "category": occurrence.category,
+                "priority": occurrence.priority,
+                "assigned_to": occurrence.assigned_to,
+                "due_at": occurrence.due_at,
             },
         )
         occurrence_id = result.lastrowid
@@ -65,7 +67,7 @@ def create_occurrence(payload: dict, attachments: List[dict]):
             ),
             {
                 "occurrence_id": occurrence_id,
-                "user_id": payload["requester_id"],
+                "user_id": occurrence.requester_id,
                 "note": "Ocorrência registrada pelo solicitante.",
             },
         )
@@ -85,13 +87,13 @@ def create_occurrence(payload: dict, attachments: List[dict]):
                     "file_name": item["file_name"],
                     "mime_type": item["mime_type"],
                     "file_data": item["file_data"],
-                    "uploaded_by": payload["requester_id"],
+                    "uploaded_by": occurrence.requester_id,
                 },
             )
-    return protocol
+    return occurrence.protocol
 
 
-def base_occurrence_query() -> str:
+def _base_occurrence_query() -> str:
     """Monta SELECT base reutilizado nas consultas de ocorrência."""
     return """
         SELECT
@@ -119,10 +121,10 @@ def base_occurrence_query() -> str:
     """
 
 
-def get_occurrences(role: str, user_id: int, filters: Optional[Dict] = None) -> pd.DataFrame:
+def _get_occurrences(role: str, user_id: int, filters: Optional[Dict] = None) -> pd.DataFrame:
     """Lista ocorrências visíveis por perfil aplicando filtros opcionais."""
     filters = filters or {}
-    query = base_occurrence_query() + " WHERE 1=1 "
+    query = _base_occurrence_query() + " WHERE 1=1 "
     params = {}
 
     if role == "solicitante":
@@ -154,13 +156,13 @@ def get_occurrences(role: str, user_id: int, filters: Optional[Dict] = None) -> 
     return run_select(query, params)
 
 
-def get_occurrence_by_id(occurrence_id: int) -> pd.DataFrame:
+def _get_occurrence_by_id(occurrence_id: int) -> pd.DataFrame:
     """Busca dados completos de uma ocorrência pelo ID."""
-    query = base_occurrence_query() + " WHERE o.id = :occurrence_id LIMIT 1"
+    query = _base_occurrence_query() + " WHERE o.id = :occurrence_id LIMIT 1"
     return run_select(query, {"occurrence_id": occurrence_id})
 
 
-def get_occurrence_updates(occurrence_id: int) -> pd.DataFrame:
+def _get_occurrence_updates(occurrence_id: int) -> pd.DataFrame:
     """Lista histórico de interações de uma ocorrência."""
     return run_select(
         """
@@ -180,7 +182,7 @@ def get_occurrence_updates(occurrence_id: int) -> pd.DataFrame:
     )
 
 
-def get_occurrence_attachments(occurrence_id: int) -> pd.DataFrame:
+def _get_occurrence_attachments(occurrence_id: int) -> pd.DataFrame:
     """Lista anexos vinculados a uma ocorrência."""
     return run_select(
         """
@@ -193,7 +195,7 @@ def get_occurrence_attachments(occurrence_id: int) -> pd.DataFrame:
     )
 
 
-def get_active_attendants() -> pd.DataFrame:
+def _get_active_attendants() -> pd.DataFrame:
     """Lista atendentes ativos disponíveis para atribuição."""
     return run_select(
         """
@@ -212,7 +214,7 @@ def get_active_attendants() -> pd.DataFrame:
     )
 
 
-def add_attachment(occurrence_id: int, uploaded_files: List, user_id: int):
+def _add_attachment(occurrence_id: int, uploaded_files: List, user_id: int):
     """Salva novos anexos em ocorrência existente."""
     engine = get_engine()
     with engine.begin() as conn:
@@ -237,7 +239,7 @@ def add_attachment(occurrence_id: int, uploaded_files: List, user_id: int):
             )
 
 
-def add_update(
+def _add_update(
     occurrence_id: int,
     user_id: int,
     note: str,
@@ -246,12 +248,20 @@ def add_update(
     new_priority: Optional[str] = None,
 ):
     """Registra atualização e aplica status, responsável ou criticidade quando informado."""
-    current = get_occurrence_by_id(occurrence_id)
+    current = _get_occurrence_by_id(occurrence_id)
     if current.empty:
         return
     current_row = current.iloc[0]
     previous_status = current_row["status"]
     status_to_apply = new_status or previous_status
+    update = AtualizacaoOcorrencia(
+        occurrence_id=occurrence_id,
+        user_id=user_id,
+        note=note,
+        action_type="status" if new_status else "comentario",
+        previous_status=previous_status,
+        new_status=status_to_apply,
+    )
 
     engine = get_engine()
     with engine.begin() as conn:
@@ -284,19 +294,19 @@ def add_update(
                 """
             ),
             {
-                "occurrence_id": occurrence_id,
-                "user_id": user_id,
-                "action_type": "status" if new_status else "comentario",
-                "previous_status": previous_status,
-                "new_status": status_to_apply,
-                "note": note,
+                "occurrence_id": update.occurrence_id,
+                "user_id": update.user_id,
+                "action_type": update.action_type,
+                "previous_status": update.previous_status,
+                "new_status": update.new_status,
+                "note": update.note,
             },
         )
 
 
-def close_occurrence(occurrence_id: int, user_id: int, closure_notes: str):
+def _close_occurrence(occurrence_id: int, user_id: int, closure_notes: str):
     """Encerra ocorrência e grava justificativa no histórico."""
-    current = get_occurrence_by_id(occurrence_id)
+    current = _get_occurrence_by_id(occurrence_id)
     if current.empty:
         return
     previous_status = current.iloc[0]["status"]
@@ -332,3 +342,133 @@ def close_occurrence(occurrence_id: int, user_id: int, closure_notes: str):
                 "note": closure_notes,
             },
         )
+
+
+class OcorrenciaService:
+    """Serviço que concentra o ciclo de vida das ocorrências."""
+
+    def next_protocol(self) -> str:
+        """Calcula o próximo protocolo anual."""
+        return _next_protocol()
+
+    def default_due_at(self, priority: str) -> datetime:
+        """Calcula o vencimento inicial pela criticidade."""
+        return _default_due_at(priority)
+
+    def create_occurrence(self, payload: dict, attachments: List[dict]):
+        """Cria uma ocorrência com histórico inicial e anexos."""
+        return _create_occurrence(payload, attachments)
+
+    def base_occurrence_query(self) -> str:
+        """Retorna o SELECT base de ocorrências."""
+        return _base_occurrence_query()
+
+    def get_occurrences(self, role: str, user_id: int, filters: Optional[Dict] = None) -> pd.DataFrame:
+        """Lista ocorrências visíveis por perfil."""
+        return _get_occurrences(role, user_id, filters)
+
+    def get_occurrence_by_id(self, occurrence_id: int) -> pd.DataFrame:
+        """Busca uma ocorrência pelo ID."""
+        return _get_occurrence_by_id(occurrence_id)
+
+    def get_occurrence_updates(self, occurrence_id: int) -> pd.DataFrame:
+        """Lista o histórico da ocorrência."""
+        return _get_occurrence_updates(occurrence_id)
+
+    def get_occurrence_attachments(self, occurrence_id: int) -> pd.DataFrame:
+        """Lista anexos da ocorrência."""
+        return _get_occurrence_attachments(occurrence_id)
+
+    def get_active_attendants(self) -> pd.DataFrame:
+        """Lista atendentes ativos para atribuição."""
+        return _get_active_attendants()
+
+    def add_attachment(self, occurrence_id: int, uploaded_files: List, user_id: int):
+        """Adiciona anexos à ocorrência."""
+        return _add_attachment(occurrence_id, uploaded_files, user_id)
+
+    def add_update(
+        self,
+        occurrence_id: int,
+        user_id: int,
+        note: str,
+        new_status: Optional[str] = None,
+        assigned_to: Optional[int] = None,
+        new_priority: Optional[str] = None,
+    ):
+        """Registra atualização de status, responsável, criticidade ou comentário."""
+        return _add_update(occurrence_id, user_id, note, new_status, assigned_to, new_priority)
+
+    def close_occurrence(self, occurrence_id: int, user_id: int, closure_notes: str):
+        """Encerra ocorrência com justificativa."""
+        return _close_occurrence(occurrence_id, user_id, closure_notes)
+
+
+ocorrencia_service = OcorrenciaService()
+
+
+def next_protocol() -> str:
+    """Atalho funcional para calcular o próximo protocolo."""
+    return ocorrencia_service.next_protocol()
+
+
+def default_due_at(priority: str) -> datetime:
+    """Atalho funcional para calcular vencimento inicial."""
+    return ocorrencia_service.default_due_at(priority)
+
+
+def create_occurrence(payload: dict, attachments: List[dict]):
+    """Atalho funcional para criar ocorrência."""
+    return ocorrencia_service.create_occurrence(payload, attachments)
+
+
+def base_occurrence_query() -> str:
+    """Atalho funcional para obter o SELECT base."""
+    return ocorrencia_service.base_occurrence_query()
+
+
+def get_occurrences(role: str, user_id: int, filters: Optional[Dict] = None) -> pd.DataFrame:
+    """Atalho funcional para listar ocorrências por perfil."""
+    return ocorrencia_service.get_occurrences(role, user_id, filters)
+
+
+def get_occurrence_by_id(occurrence_id: int) -> pd.DataFrame:
+    """Atalho funcional para buscar ocorrência por ID."""
+    return ocorrencia_service.get_occurrence_by_id(occurrence_id)
+
+
+def get_occurrence_updates(occurrence_id: int) -> pd.DataFrame:
+    """Atalho funcional para listar histórico de ocorrência."""
+    return ocorrencia_service.get_occurrence_updates(occurrence_id)
+
+
+def get_occurrence_attachments(occurrence_id: int) -> pd.DataFrame:
+    """Atalho funcional para listar anexos de ocorrência."""
+    return ocorrencia_service.get_occurrence_attachments(occurrence_id)
+
+
+def get_active_attendants() -> pd.DataFrame:
+    """Atalho funcional para listar atendentes ativos."""
+    return ocorrencia_service.get_active_attendants()
+
+
+def add_attachment(occurrence_id: int, uploaded_files: List, user_id: int):
+    """Atalho funcional para adicionar anexos."""
+    return ocorrencia_service.add_attachment(occurrence_id, uploaded_files, user_id)
+
+
+def add_update(
+    occurrence_id: int,
+    user_id: int,
+    note: str,
+    new_status: Optional[str] = None,
+    assigned_to: Optional[int] = None,
+    new_priority: Optional[str] = None,
+):
+    """Atalho funcional para registrar atualização de ocorrência."""
+    return ocorrencia_service.add_update(occurrence_id, user_id, note, new_status, assigned_to, new_priority)
+
+
+def close_occurrence(occurrence_id: int, user_id: int, closure_notes: str):
+    """Atalho funcional para encerrar ocorrência."""
+    return ocorrencia_service.close_occurrence(occurrence_id, user_id, closure_notes)

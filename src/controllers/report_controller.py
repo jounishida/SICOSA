@@ -7,7 +7,7 @@ import pandas as pd
 from src.db import fetch_scalar, run_select
 
 
-def metrics_for_user(role: str, user_id: int) -> Dict[str, int]:
+def _metrics_for_user(role: str, user_id: int) -> Dict[str, int]:
     """Calcula métricas resumidas de ocorrências conforme perfil."""
     params = {}
     where = ""
@@ -30,7 +30,7 @@ def metrics_for_user(role: str, user_id: int) -> Dict[str, int]:
     return {k: int(v) for k, v in row.items()}
 
 
-def manager_status_summary() -> pd.DataFrame:
+def _manager_status_summary() -> pd.DataFrame:
     """Agrupa ocorrências por status para dashboard gerencial."""
     return run_select(
         """
@@ -42,7 +42,7 @@ def manager_status_summary() -> pd.DataFrame:
     )
 
 
-def manager_department_summary() -> pd.DataFrame:
+def _manager_department_summary() -> pd.DataFrame:
     """Agrupa ocorrências por setor para dashboard gerencial."""
     return run_select(
         """
@@ -55,7 +55,7 @@ def manager_department_summary() -> pd.DataFrame:
     )
 
 
-def manager_priority_summary() -> pd.DataFrame:
+def _manager_priority_summary() -> pd.DataFrame:
     """Agrupa ocorrências por criticidade para dashboard gerencial."""
     return run_select(
         """
@@ -67,7 +67,7 @@ def manager_priority_summary() -> pd.DataFrame:
     )
 
 
-def mean_resolution_time_hours() -> float:
+def _mean_resolution_time_hours() -> float:
     """Calcula tempo médio de resolução em horas."""
     value = fetch_scalar(
         """
@@ -77,3 +77,55 @@ def mean_resolution_time_hours() -> float:
         """
     )
     return float(value or 0)
+
+
+class RelatorioService:
+    """Serviço responsável por métricas e agregações gerenciais."""
+
+    def metrics_for_user(self, role: str, user_id: int) -> Dict[str, int]:
+        """Calcula métricas resumidas por perfil."""
+        return _metrics_for_user(role, user_id)
+
+    def manager_status_summary(self) -> pd.DataFrame:
+        """Agrupa ocorrências por status."""
+        return _manager_status_summary()
+
+    def manager_department_summary(self) -> pd.DataFrame:
+        """Agrupa ocorrências por setor."""
+        return _manager_department_summary()
+
+    def manager_priority_summary(self) -> pd.DataFrame:
+        """Agrupa ocorrências por criticidade."""
+        return _manager_priority_summary()
+
+    def mean_resolution_time_hours(self) -> float:
+        """Calcula tempo médio de resolução em horas."""
+        return _mean_resolution_time_hours()
+
+
+relatorio_service = RelatorioService()
+
+
+def metrics_for_user(role: str, user_id: int) -> Dict[str, int]:
+    """Atalho funcional para métricas resumidas por perfil."""
+    return relatorio_service.metrics_for_user(role, user_id)
+
+
+def manager_status_summary() -> pd.DataFrame:
+    """Atalho funcional para agrupamento por status."""
+    return relatorio_service.manager_status_summary()
+
+
+def manager_department_summary() -> pd.DataFrame:
+    """Atalho funcional para agrupamento por setor."""
+    return relatorio_service.manager_department_summary()
+
+
+def manager_priority_summary() -> pd.DataFrame:
+    """Atalho funcional para agrupamento por criticidade."""
+    return relatorio_service.manager_priority_summary()
+
+
+def mean_resolution_time_hours() -> float:
+    """Atalho funcional para tempo médio de resolução."""
+    return relatorio_service.mean_resolution_time_hours()
