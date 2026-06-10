@@ -6,9 +6,15 @@ Projeto Streamlit com perfis de **solicitante**, **atendente**, **gestor** e **a
 
 ```text
 streamlit_ocorrencias/
-├── app.py
+├── app.py                    # bootstrap/configuração central e roteamento por perfil
+├── src/
+│   ├── config.py             # constantes e configuração de ambiente
+│   ├── db.py                 # conexão e helpers de banco
+│   ├── security.py           # hash, validação de senha/e-mail/anexos
+│   ├── controllers/          # regras de negócio e acesso a dados por domínio
+│   ├── ui/                   # componentes reutilizáveis de interface
+│   └── views/                # views/telas Streamlit sem ativar multipage automático
 ├── requirements.txt
-├── .env.example
 ├── README.md
 └── sql/
     ├── 01_schema.sql
@@ -53,6 +59,7 @@ Depois carregue a massa inicial:
 mysql -u root -p suporte_ocorrencias < sql/02_seed.sql
 ```
 
+
 ### 4) Configure a conexão com o MySQL
 
 Copie o arquivo de exemplo e ajuste a URL:
@@ -88,16 +95,6 @@ export DATABASE_URL="mysql+pymysql://root:1234@localhost:3306/suporte_ocorrencia
 ```bash
 streamlit run app.py
 ```
-
-## Usuários de exemplo
-
-Todos usam a senha `Senha@123`.
-
-- `jonathan.nishida@instituicao.br` — solicitante
-- `marcos.silva@instituicao.br` — atendente
-- `jessica.costa@instituicao.br` — atendente
-- `carlos.menezes@instituicao.br` — gestor
-- `admin@instituicao.br` — administrador
 
 ## O que já está implementado
 
